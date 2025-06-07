@@ -9,11 +9,12 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
         .glassmorphism { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; }
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; }
         .btn-primary { background-color: #3b82f6; color: white; } .btn-primary:hover { background-color: #2563eb; }
         .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover { background-color: #374151; }
         .btn-danger { background-color: #ef4444; color: white; } .btn-danger:hover { background-color: #dc2626; }
         .btn-warning { background-color: #f59e0b; color: white; } .btn-warning:hover { background-color: #d97706; }
+        .btn:disabled { background-color: #374151; opacity: 0.5; cursor: not-allowed; }
         .modal { display: none; } .modal.is-open { display: flex; }
         #app-container { display: none; }
     </style>
@@ -36,9 +37,13 @@
     <!-- Contenedor Principal de la App -->
     <div id="app-container">
         <div class="max-w-7xl mx-auto">
-            <header class="mb-8 flex justify-between items-center">
+            <header class="mb-8 flex justify-between items-center flex-wrap gap-4">
                 <h1 class="text-4xl font-bold text-white">Dashboard</h1>
-                <div><span id="current-user-name" class="text-gray-300 mr-4"></span><button id="logout-btn" class="text-sm text-red-400 hover:text-red-500">Cerrar Sesión</button></div>
+                <div class="flex items-center gap-4">
+                    <span id="current-user-name" class="text-gray-300"></span>
+                    <button id="profile-btn" class="btn btn-secondary text-sm">Perfil</button>
+                    <button id="logout-btn" class="text-sm text-red-400 hover:text-red-500">Cerrar Sesión</button>
+                </div>
             </header>
 
             <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -55,40 +60,31 @@
     <!-- Modals -->
     <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3><form id="add-game-form"><input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4 text-white" required><div class="flex justify-end gap-4"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="submit" class="btn btn-primary">Confirmar</button></div></form></div></div>
     <div id="vote-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-2xl"><h3 class="text-2xl font-bold text-white mb-2">Votación: <span id="vote-game-name" class="text-blue-400"></span></h3><p class="text-gray-400 mb-6">Emite tu voto. Los votos '3' cuestan 1 Token de Prioridad. Los '0' generan 1.</p><form id="vote-form" class="space-y-4"></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="button" id="submit-vote" class="btn btn-primary">Registrar Votos</button></div></div></div>
+    <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Perfil y Seguridad</h3><div id="profile-stats" class="mb-6"></div><form id="change-password-form"><h4 class="text-lg font-semibold text-white mb-4">Cambiar Contraseña</h4><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Contraseña Actual</label><input type="password" id="current-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Nueva Contraseña</label><input type="password" id="new-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><button type="submit" class="btn btn-primary w-full">Actualizar Contraseña</button><p id="password-feedback" class="text-center mt-4 h-4"></p></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
     
     <script>
-        const API_URL = 'https://protocolo-tirano.onrender.com';
+        const API_URL = '[https://protocolo-tirano.onrender.com](https://protocolo-tirano.onrender.com)'; // O 'http://localhost:3000' para desarrollo
         let state = {};
         let modals = {};
 
         // --- LÓGICA DE LA API ---
         async function apiCall(endpoint, method = 'GET', body = null) {
             const token = localStorage.getItem('accessToken');
-            const options = {
-                method,
-                headers: { 'Authorization': `Bearer ${token}` }
-            };
+            const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
             if (body) {
                 options.headers['Content-Type'] = 'application/json';
                 options.body = JSON.stringify(body);
             }
             const response = await fetch(`${API_URL}${endpoint}`, options);
-            if (response.status === 401 || response.status === 403) {
-                logout();
-                throw new Error('Unauthorized');
-            }
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.message || 'API Error');
-            }
-            return response.json();
+            if (response.status === 401 || response.status === 403) { logout(); throw new Error('No autorizado'); }
+            const resData = await response.json();
+            if (!response.ok) throw new Error(resData.message || 'Error en la API');
+            return resData;
         }
 
         async function fetchState() {
-            try {
-                state = await apiCall('/api/state');
-                render();
-            } catch (error) { console.error("Error al cargar estado:", error); }
+            try { state = await apiCall('/api/state'); render(); return true; } 
+            catch (error) { console.error("Error al cargar estado:", error); return false; }
         }
 
         // --- RENDERIZADO ---
@@ -105,18 +101,7 @@
             const sortedUsers = [...state.users].sort((a,b) => playerScores[b.username] - playerScores[a.username]);
             sortedUsers.forEach((user, index) => {
                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-                el.innerHTML += `
-                    <div class="p-4 rounded-lg bg-gray-800">
-                        <div class="flex justify-between items-center">
-                            <div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div>
-                            <div class="text-2xl font-bold text-blue-400">${playerScores[user.username] || 0}</div>
-                        </div>
-                        <div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center">
-                             <div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div>
-                             <div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div>
-                             <div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div>
-                        </div>
-                    </div>`;
+                el.innerHTML += `<div class="p-4 rounded-lg bg-gray-800"><div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div><div class="text-2xl font-bold text-blue-400">${playerScores[user.username] || 0}</div></div><div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center"><div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div></div></div>`;
             });
         }
         
@@ -141,7 +126,6 @@
         function renderGameList() {
             const el = document.getElementById('game-list');
             el.innerHTML = '';
-            // Ordenar juegos
             const sortedGames = [...state.games].sort((a, b) => {
                 if(a.status === 'pending_vote' && b.status !== 'pending_vote') return -1;
                 if(a.status !== 'pending_vote' && b.status === 'pending_vote') return 1;
@@ -151,74 +135,40 @@
             });
 
             if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos nominados.</p>'; return; }
-            
-            sortedGames.forEach(game => {
-                let gameHTML = '';
-                if (game.status === 'pending_vote') {
-                    gameHTML = createPendingGameHTML(game);
-                } else if (game.status === 'vetoed') {
-                    gameHTML = createVetoedGameHTML(game);
-                } else { // active
-                    gameHTML = createActiveGameHTML(game);
-                }
-                el.innerHTML += gameHTML;
-            });
+            sortedGames.forEach(game => el.innerHTML += createGameHTML(game));
         }
         
-        function createPendingGameHTML(game) {
-            const canCancel = game.nominatedBy === state.currentUser.username;
-            return `<div class="p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10">
-                        <div class="flex justify-between items-center">
-                            <div><span class="text-xl font-bold text-white">${game.name}</span><span class="text-xs text-gray-400 ml-2">de ${state.users.find(u=>u.username===game.nominatedBy)?.name}</span></div>
-                            <div class="flex gap-2">
-                                ${canCancel ? `<button class="btn btn-warning text-sm" onclick="handleCancel('${game._id}')">Cancelar</button>` : ''}
-                                <button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button>
-                            </div>
-                        </div>
-                    </div>`;
-        }
-
-        function createVetoedGameHTML(game) {
-            const vetoer = state.users.find(p => p.username === game.vetoedBy);
-            return `<div class="p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50">
-                        <div class="flex justify-between items-center">
-                            <span class="text-xl font-bold text-gray-400 line-through">${game.name}</span>
-                            <span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}</span>
-                        </div>
-                    </div>`;
-        }
-
-        function createActiveGameHTML(game) {
+        function createGameHTML(game) {
+            // ... (resto de la función createGameHTML, sin cambios)
+            if (game.status === 'pending_vote') {
+                const canCancel = game.nominatedBy === state.currentUser.username;
+                const nominator = state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy;
+                return `<div class="p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10"><div class="flex justify-between items-center flex-wrap gap-2"><div><span class="text-xl font-bold text-white">${game.name}</span><span class="text-xs text-gray-400 ml-2">de ${nominator}</span></div><div class="flex gap-2">${canCancel ? `<button class="btn btn-warning text-sm" onclick="handleCancel('${game._id}')">Cancelar</button>` : ''}<button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button></div></div></div>`;
+            }
+            if (game.status === 'vetoed') {
+                const vetoer = state.users.find(p => p.username === game.vetoedBy);
+                return `<div class="p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50"><div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name}</span><span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}</span></div></div>`;
+            }
+            // Active games
             const getVoteBadge = (vote) => `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[vote]}">${vote}</span>`;
             const playerVotesHTML = state.users.map(p => `<div class="flex flex-col items-center"><span class="text-xs text-gray-400 mb-1">${p.name}</span>${getVoteBadge(game.votes[p.username] ?? null)}</div>`).join('');
             const hasZeroVote = Object.values(game.votes).includes(0);
             const canBeVetoed = state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0);
 
-            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}">
-                        <div class="flex justify-between items-center mb-3">
-                            <h4 class="text-xl font-bold text-white">${game.name}</h4>
-                            <div class="flex items-center gap-4">
-                                <div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div>
-                                ${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}
-                            </div>
-                        </div>
-                        <div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>
-                        ${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}
-                    </div>`;
+            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white">${game.name}</h4><div class="flex items-center gap-4"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
         }
+
 
         function calculateScores() {
             const scores = {};
             state.users.forEach(u => scores[u.username] = 0);
             state.games.forEach(game => {
                 if (game.status === 'active') {
+                    game.totalScore = Object.values(game.votes).reduce((sum, vote) => sum + vote, 0);
                     for (const username in game.votes) {
-                        if (scores[username] !== undefined) {
-                            scores[username] += game.votes[username];
-                        }
+                        scores[username] = (scores[username] || 0) + game.votes[username];
                     }
                 }
-                game.totalScore = Object.values(game.votes).reduce((sum, vote) => sum + vote, 0);
             });
             return scores;
         }
@@ -232,49 +182,61 @@
             voteForm.innerHTML = ''; voteForm.dataset.gameid = gameId;
 
             state.users.forEach(user => {
-                let optionsHTML = '';
                 const canAfford3 = user.tokens >= 1;
-                optionsHTML += `<option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad Alta) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option>`;
-                optionsHTML += `<option value="2" selected>2 (Aceptable) - Cuesta 0 Tokens</option>`;
-                optionsHTML += `<option value="1">1 (Tolerable) - Cuesta 0 Tokens</option>`;
-                optionsHTML += `<option value="0">0 (Rechazo Absoluto) - Genera 1 Token</option>`;
-                voteForm.innerHTML += `<div class="grid grid-cols-3 items-center gap-4"><label class="font-semibold text-white">${user.name}:</label><select data-username="${user.username}" class="col-span-2 w-full bg-gray-700 rounded-lg p-2 text-white">${optionsHTML}</select></div>`;
+                voteForm.innerHTML += `<div class="grid grid-cols-3 items-center gap-4"><label class="font-semibold text-white">${user.name}:</label><select data-username="${user.username}" class="col-span-2 w-full bg-gray-700 rounded-lg p-2 text-white"><option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option><option value="2" selected>2 (Aceptable)</option><option value="1">1 (Tolerable)</option><option value="0">0 (Rechazo)</option></select></div>`;
             });
             modals.vote.classList.add('is-open');
+        }
+        
+        function openProfileModal() {
+            const currentUser = state.users.find(u => u.username === state.currentUser.username);
+            const statsEl = document.getElementById('profile-stats');
+            statsEl.innerHTML = `<p class="text-gray-300">Aquí puedes ver tus estadísticas y gestionar tu cuenta.</p>`;
+            document.getElementById('password-feedback').textContent = '';
+            document.getElementById('change-password-form').reset();
+            modals.profile.classList.add('is-open');
         }
 
         async function handleSubmitVote() {
             const gameId = document.getElementById('vote-form').dataset.gameid;
             const votes = {};
             document.querySelectorAll('#vote-form select').forEach(s => votes[s.dataset.username] = parseInt(s.value));
-            
-            try {
-                await apiCall(`/api/games/${gameId}/vote`, 'POST', { votes });
-                modals.vote.classList.remove('is-open');
-                await fetchState();
-            } catch(error) { alert(error.message); }
+            try { await apiCall(`/api/games/${gameId}/vote`, 'POST', { votes }); modals.vote.classList.remove('is-open'); await fetchState(); } 
+            catch(error) { alert(error.message); }
         }
 
         async function handleCancel(gameId) {
-            if (!confirm("¿Seguro que quieres cancelar tu nominación? No podrás nominar otro juego durante 24 horas.")) return;
-            try {
-                const result = await apiCall(`/api/games/${gameId}`, 'DELETE');
-                alert(result.message);
-                await fetchState();
-            } catch(error) { alert(error.message); }
+            if (!confirm("¿Seguro? No podrás nominar otro juego durante 24 horas.")) return;
+            try { const result = await apiCall(`/api/games/${gameId}`, 'DELETE'); alert(result.message); await fetchState(); }
+            catch(error) { alert(error.message); }
         }
 
         async function handleVeto(gameId) {
-            if (!confirm("¿ESTÁS SEGURO? Esta acción es irreversible, gastará tu Veto y aplicará una penalización de Prestigio al nominador.")) return;
+            if (!confirm("¿ESTÁS SEGURO? Esta acción es irreversible, gastará tu Veto y aplicará una penalización de Prestigio.")) return;
+            try { const result = await apiCall(`/api/games/${gameId}/veto`, 'POST'); alert(result.message); await fetchState(); }
+            catch(error) { alert(error.message); }
+        }
+        
+        async function handleChangePassword(e) {
+            e.preventDefault();
+            const feedbackEl = document.getElementById('password-feedback');
+            feedbackEl.textContent = '';
+            const currentPassword = e.target['current-password'].value;
+            const newPassword = e.target['new-password'].value;
+
             try {
-                const result = await apiCall(`/api/games/${gameId}/veto`, 'POST');
-                alert(result.message);
-                await fetchState();
-            } catch(error) { alert(error.message); }
+                const result = await apiCall('/api/user/change-password', 'POST', { currentPassword, newPassword });
+                feedbackEl.textContent = result.message;
+                feedbackEl.classList.remove('text-red-500');
+                feedbackEl.classList.add('text-green-500');
+                e.target.reset();
+            } catch(error) {
+                feedbackEl.textContent = error.message;
+                feedbackEl.classList.add('text-red-500');
+                feedbackEl.classList.remove('text-green-500');
+            }
         }
 
-        // --- AUTENTICACIÓN Y ARRANQUE ---
-        
         function logout() {
             localStorage.removeItem('accessToken');
             document.getElementById('app-container').style.display = 'none';
@@ -284,29 +246,22 @@
         async function initializeApp() {
             const token = localStorage.getItem('accessToken');
             if (token) {
+                document.getElementById('login-container').style.display = 'none';
                 const success = await fetchState();
                 if (success) {
-                    document.getElementById('login-container').style.display = 'none';
+                    document.getElementById('current-user-name').textContent = `Conectado como: ${state.currentUser?.name}`;
                     document.getElementById('app-container').style.display = 'block';
                 }
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            modals = {
-                addGame: document.getElementById('add-game-modal'),
-                vote: document.getElementById('vote-modal')
-            };
-            
+            modals = { addGame: document.getElementById('add-game-modal'), vote: document.getElementById('vote-modal'), profile: document.getElementById('profile-modal') };
             document.getElementById('login-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const errorEl = document.getElementById('login-error');
-                errorEl.textContent = '';
+                const errorEl = document.getElementById('login-error'); errorEl.textContent = '';
                 try {
-                    const response = await fetch(`${API_URL}/api/login`, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: e.target.username.value, password: e.target.password.value })
-                    });
+                    const response = await fetch(`${API_URL}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: e.target.username.value, password: e.target.password.value }) });
                     if (!response.ok) throw new Error('Credenciales incorrectas');
                     const { accessToken } = await response.json();
                     localStorage.setItem('accessToken', accessToken);
@@ -315,22 +270,17 @@
             });
 
             document.getElementById('logout-btn').addEventListener('click', logout);
+            document.getElementById('profile-btn').addEventListener('click', openProfileModal);
             document.getElementById('add-game-btn').addEventListener('click', () => modals.addGame.classList.add('is-open'));
             document.querySelectorAll('.cancel-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal').classList.remove('is-open')));
-            
             document.getElementById('add-game-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const input = document.getElementById('new-game-name');
-                if (!input.value.trim()) return;
-                try {
-                    await apiCall('/api/games', 'POST', { name: input.value.trim() });
-                    input.value = '';
-                    modals.addGame.classList.remove('is-open');
-                    await fetchState();
-                } catch (error) { alert(error.message); }
+                const input = document.getElementById('new-game-name'); if (!input.value.trim()) return;
+                try { await apiCall('/api/games', 'POST', { name: input.value.trim() }); input.value = ''; modals.addGame.classList.remove('is-open'); await fetchState(); } 
+                catch (error) { alert(error.message); }
             });
-            
             document.getElementById('submit-vote').addEventListener('click', handleSubmitVote);
+            document.getElementById('change-password-form').addEventListener('submit', handleChangePassword);
 
             initializeApp();
         });

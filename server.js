@@ -55,10 +55,10 @@ async function main() {
                     username: user.username,
                     password: hashedPassword,
                     name: user.name,
-                    tokens: 3, // Capital inicial de Tokens de Prioridad
-                    vetoes: 1, // Veto único
-                    prestige: 0, // Prestigio inicial
-                    nominationCooldownUntil: null, // Sin cooldown inicial
+                    tokens: 3,
+                    vetoes: 1,
+                    prestige: 0,
+                    nominationCooldownUntil: null,
                 };
             }));
             await usersCollection.insertMany(hashedUsers);
@@ -67,7 +67,6 @@ async function main() {
 
         // --- RUTAS DE LA API ---
 
-        // POST /api/login: Iniciar sesión
         app.post('/api/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
@@ -88,6 +87,26 @@ async function main() {
                 const games = await db.collection('games').find({}).toArray();
                 res.json({ users, games, currentUser: req.user });
             } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
+        });
+        
+        app.post('/api/user/change-password', authenticateToken, async (req, res) => {
+            const { currentPassword, newPassword } = req.body;
+            const username = req.user.username;
+
+            if (!currentPassword || !newPassword || newPassword.length < 6) {
+                return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+            }
+
+            const user = await usersCollection.findOne({ username });
+            if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
+            
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
+            if (!isMatch) return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
+
+            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+            await usersCollection.updateOne({ username }, { $set: { password: hashedNewPassword } });
+
+            res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         });
 
         app.post('/api/games', authenticateToken, async (req, res) => {
@@ -122,43 +141,33 @@ async function main() {
 
         app.post('/api/games/:id/vote', authenticateToken, async (req, res) => {
             const gameId = req.params.id;
-            const votes = req.body.votes; // { david: 3, pablo: 2, etc. }
+            const votes = req.body.votes;
             
             const voters = Object.keys(votes);
             const users = await usersCollection.find({ username: { $in: voters } }).toArray();
             const userMap = new Map(users.map(u => [u.username, u]));
             
-            // Validar si los jugadores tienen suficientes tokens para sus votos
             for (const username of voters) {
-                const vote = votes[username];
-                if (vote === 3) {
-                    if (userMap.get(username).tokens < 1) {
-                        return res.status(400).json({ message: `El jugador ${username} no tiene suficientes Tokens de Prioridad para votar '3'.` });
-                    }
+                if (votes[username] === 3 && userMap.get(username).tokens < 1) {
+                    return res.status(400).json({ message: `El jugador ${username} no tiene suficientes Tokens de Prioridad para votar '3'.` });
                 }
             }
             
-            // Aplicar cambios
-            const bulkOps = [];
-            for (const username of voters) {
+            const bulkOps = voters.map(username => {
                 const vote = votes[username];
                 let tokenChange = 0;
                 if (vote === 3) tokenChange = -1;
                 if (vote === 0) tokenChange = 1;
                 
-                if (tokenChange !== 0) {
-                    bulkOps.push({
-                        updateOne: {
-                            filter: { username: username },
-                            update: { $inc: { tokens: tokenChange } }
-                        }
-                    });
-                }
-            }
-            if (bulkOps.length > 0) {
-                await usersCollection.bulkWrite(bulkOps);
-            }
+                return {
+                    updateOne: {
+                        filter: { username: username },
+                        update: { $inc: { tokens: tokenChange } }
+                    }
+                };
+            }).filter(op => op.updateOne.update.$inc.tokens !== 0);
 
+            if (bulkOps.length > 0) await usersCollection.bulkWrite(bulkOps);
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { votes, status: 'active' } });
             res.status(200).json({ message: 'Votos registrados.' });
         });
@@ -171,13 +180,12 @@ async function main() {
             if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
 
             const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-            if (!game || game.votes[vetoerUsername] !== 0) {
-                return res.status(403).json({ message: 'Debes haber votado 0 a este juego para poder vetarlo.' });
-            }
+            if (!game || game.votes[vetoerUsername] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
-            // Aplicar Veto y penalización
             await usersCollection.updateOne({ username: vetoerUsername }, { $inc: { vetoes: -1 } });
-            await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -5 } });
+            if (game.nominatedBy) {
+                 await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -5 } });
+            }
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { status: 'vetoed', vetoedBy: vetoerUsername } });
             
             res.status(200).json({ message: 'Juego vetado con éxito.' });
