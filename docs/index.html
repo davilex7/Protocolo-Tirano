@@ -49,15 +49,22 @@
                 <h1 class="text-4xl font-bold text-white">Dashboard</h1>
                 <div class="flex items-center gap-4">
                     <span id="current-user-name" class="text-gray-300"></span>
+                    <button id="admin-panel-btn" class="btn btn-warning text-sm hidden">Admin</button>
                     <button id="profile-btn" class="btn btn-secondary text-sm">Perfil</button>
                     <button id="logout-btn" class="text-sm text-red-400 hover:text-red-500">Cerrar Sesión</button>
                 </div>
             </header>
 
             <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <section class="lg:col-span-1 p-6 rounded-lg glassmorphism"><h2 class="text-2xl font-bold text-white mb-4">Ranking de Jugadores</h2><div id="player-ranking" class="space-y-3"></div></section>
+                <section class="lg:col-span-1 p-6 rounded-lg glassmorphism">
+                    <h2 class="text-2xl font-bold text-white mb-4">Ranking de Jugadores</h2>
+                    <div id="player-ranking" class="space-y-3"></div>
+                </section>
                 <section class="lg:col-span-2 p-6 rounded-lg glassmorphism">
-                    <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-white">Lista de Juegos</h2><button id="add-game-btn" class="btn btn-primary">Nominar Juego</button></div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold text-white">Lista de Juegos</h2>
+                        <button id="add-game-btn" class="btn btn-primary">Nominar Juego</button>
+                    </div>
                     <p id="nomination-status" class="text-yellow-400 text-sm mb-4 h-5"></p>
                     <div id="game-list" class="space-y-4"></div>
                 </section>
@@ -65,13 +72,69 @@
         </div>
     </div>
 
-    <!-- Modals (el resto del HTML es igual) -->
-    <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3><form id="add-game-form"><input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4 text-white" required><div class="flex justify-end gap-4"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="submit" class="btn btn-primary">Confirmar</button></div></form></div></div>
-    <div id="vote-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-2xl"><h3 class="text-2xl font-bold text-white mb-2">Votación: <span id="vote-game-name" class="text-blue-400"></span></h3><p class="text-gray-400 mb-6">Emite tu voto. Los votos '3' cuestan 1 Token de Prioridad. Los '0' generan 1.</p><form id="vote-form" class="space-y-4"></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="button" id="submit-vote" class="btn btn-primary">Registrar Votos</button></div></div></div>
-    <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Perfil y Seguridad</h3><div id="profile-stats" class="mb-6"></div><form id="change-password-form"><h4 class="text-lg font-semibold text-white mb-4">Cambiar Contraseña</h4><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Contraseña Actual</label><input type="password" id="current-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Nueva Contraseña</label><input type="password" id="new-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><button type="submit" class="btn btn-primary w-full">Actualizar Contraseña</button><p id="password-feedback" class="text-center mt-4 h-4"></p></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
+    <!-- Modals -->
+    <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
+        <div class="glassmorphism rounded-lg p-8 w-full max-w-md">
+            <h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3>
+            <form id="add-game-form">
+                <input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4 text-white" required>
+                <div class="flex justify-end gap-4">
+                    <button type="button" class="btn btn-secondary cancel-modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="vote-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
+        <div class="glassmorphism rounded-lg p-8 w-full max-w-md">
+            <h3 class="text-2xl font-bold text-white mb-2">Votar por: <span id="vote-game-name" class="text-blue-400"></span></h3>
+            <p class="text-gray-400 mb-6">Emite o modifica tu voto.</p>
+            <form id="vote-form" class="space-y-4">
+                <!-- Voto del usuario actual se inyectará aquí -->
+            </form>
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="button" class="btn btn-secondary cancel-modal">Cancelar</button>
+                <button type="button" id="submit-vote" class="btn btn-primary">Registrar Voto</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
+        <div class="glassmorphism rounded-lg p-8 w-full max-w-md">
+            <h3 class="text-2xl font-bold text-white mb-6">Perfil y Seguridad</h3>
+            <form id="change-password-form">
+                <h4 class="text-lg font-semibold text-white mb-4">Cambiar Contraseña</h4>
+                <div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Contraseña Actual</label><input type="password" id="current-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div>
+                <div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Nueva Contraseña</label><input type="password" id="new-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div>
+                <button type="submit" class="btn btn-primary w-full">Actualizar Contraseña</button>
+                <p id="password-feedback" class="text-center mt-4 h-4"></p>
+            </form>
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="button" class="btn btn-secondary cancel-modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4">
+        <div class="glassmorphism rounded-lg p-8 w-full max-w-4xl max-h-screen overflow-y-auto">
+            <h3 class="text-2xl font-bold text-white mb-6">Panel de Administración</h3>
+            <div class="mb-8">
+                <h4 class="text-lg font-semibold text-white mb-4">Gestionar Jugadores</h4>
+                <div id="admin-user-list" class="space-y-4"></div>
+            </div>
+            <div>
+                <h4 class="text-lg font-semibold text-white mb-4">Acciones Globales</h4>
+                <button id="admin-reset-app-btn" class="btn btn-danger">Resetear Aplicación (Valores por Defecto)</button>
+            </div>
+            <div class="flex justify-end gap-4 mt-6">
+                <button type="button" class="btn btn-secondary cancel-modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
     
     <script>
-        const API_URL = 'https://protocolo-tirano.onrender.com'; // O 'http://localhost:3000' para desarrollo
+        const API_URL = 'https://protocolo-tirano.onrender.com'; // O 'http://localhost:3000'
         let state = {};
         let modals = {};
 
@@ -100,13 +163,24 @@
             renderPlayerRanking();
             renderGameList();
             renderNominationStatus();
+            renderAdminButton();
+        }
+        
+        function renderAdminButton() {
+            const adminBtn = document.getElementById('admin-panel-btn');
+            if (state.currentUser && state.currentUser.isAdmin) {
+                adminBtn.classList.remove('hidden');
+            } else {
+                adminBtn.classList.add('hidden');
+            }
         }
 
         function renderPlayerRanking() {
             const el = document.getElementById('player-ranking');
             el.innerHTML = '';
             const playerScores = calculateScores();
-            const sortedUsers = [...state.users].sort((a,b) => playerScores[b.username] - playerScores[a.username]);
+            const sortedUsers = [...state.users].filter(u => !u.isAdmin).sort((a,b) => playerScores[b.username] - playerScores[a.username]);
+            
             sortedUsers.forEach((user, index) => {
                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
                 el.innerHTML += `<div class="p-4 rounded-lg bg-gray-800"><div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div><div class="text-2xl font-bold text-blue-400">${playerScores[user.username] || 0}</div></div><div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center"><div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div></div></div>`;
@@ -121,7 +195,7 @@
             addBtn.disabled = false;
             el.textContent = '';
             
-            if(!currentUser) return; // Guard against render before state is fully loaded
+            if(!currentUser) return;
 
             if (currentUser.nominationCooldownUntil && new Date(currentUser.nominationCooldownUntil) > new Date()) {
                 addBtn.disabled = true;
@@ -139,11 +213,13 @@
             const el = document.getElementById('game-list');
             el.innerHTML = '';
             const sortedGames = [...state.games].sort((a, b) => {
+                const scoreA = a.totalScore ?? 0;
+                const scoreB = b.totalScore ?? 0;
                 if(a.status === 'pending_vote' && b.status !== 'pending_vote') return -1;
                 if(a.status !== 'pending_vote' && b.status === 'pending_vote') return 1;
                 if(a.status === 'vetoed' && b.status !== 'vetoed') return 1;
                 if(a.status !== 'vetoed' && b.status === 'vetoed') return -1;
-                return b.totalScore - a.totalScore;
+                return scoreB - scoreA;
             });
 
             if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos nominados.</p>'; return; }
@@ -151,22 +227,23 @@
         }
         
         function createGameHTML(game) {
+            // ... (resto de la función createGameHTML, sin cambios)
             if (game.status === 'pending_vote') {
-                const canCancel = game.nominatedBy === state.currentUser.username;
                 const nominator = state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy;
-                return `<div class="p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10"><div class="flex justify-between items-center flex-wrap gap-2"><div><span class="text-xl font-bold text-white">${game.name}</span><span class="text-xs text-gray-400 ml-2">de ${nominator}</span></div><div class="flex gap-2">${canCancel ? `<button class="btn btn-warning text-sm" onclick="handleCancel('${game._id}')">Cancelar</button>` : ''}<button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button></div></div></div>`;
+                return `<div class="p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10"><div class="flex justify-between items-center flex-wrap gap-2"><div><span class="text-xl font-bold text-white">${game.name}</span><span class="text-xs text-gray-400 ml-2">de ${nominator}</span></div><div class="flex gap-2"><button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button></div></div></div>`;
             }
             if (game.status === 'vetoed') {
                 const vetoer = state.users.find(p => p.username === game.vetoedBy);
                 return `<div class="p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50"><div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name}</span><span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}</span></div></div>`;
             }
             const getVoteBadge = (vote) => `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[vote]}">${vote}</span>`;
-            const playerVotesHTML = state.users.map(p => `<div class="flex flex-col items-center"><span class="text-xs text-gray-400 mb-1">${p.name}</span>${getVoteBadge(game.votes[p.username] ?? null)}</div>`).join('');
+            const playerVotesHTML = state.users.filter(u=>!u.isAdmin).map(p => `<div class="flex flex-col items-center"><span class="text-xs text-gray-400 mb-1">${p.name}</span>${getVoteBadge(game.votes[p.username] ?? null)}</div>`).join('');
             const hasZeroVote = Object.values(game.votes).includes(0);
             const canBeVetoed = state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0);
 
-            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white">${game.name}</h4><div class="flex items-center gap-4"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
+            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white">${game.name}</h4><div class="flex items-center gap-4"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div><button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
         }
+
 
         function calculateScores() {
             const scores = {};
@@ -183,16 +260,32 @@
         }
 
         // --- MANEJO DE EVENTOS Y MODALES ---
+
         function openVoteModal(gameId) {
             const game = state.games.find(g => g._id === gameId);
+            const user = state.users.find(u => u.username === state.currentUser.username);
+            const currentVote = game.votes[user.username];
+            
             document.getElementById('vote-game-name').textContent = game.name;
             const voteForm = document.getElementById('vote-form');
             voteForm.innerHTML = ''; voteForm.dataset.gameid = gameId;
 
-            state.users.forEach(user => {
-                const canAfford3 = user.tokens >= 1;
-                voteForm.innerHTML += `<div class="grid grid-cols-3 items-center gap-4"><label class="font-semibold text-white">${user.name}:</label><select data-username="${user.username}" class="col-span-2 w-full bg-gray-700 rounded-lg p-2 text-white"><option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option><option value="2" selected>2 (Aceptable)</option><option value="1">1 (Tolerable)</option><option value="0">0 (Rechazo)</option></select></div>`;
-            });
+            let tokenCost = (currentVote === 3) ? user.tokens + 1 : user.tokens;
+            const canAfford3 = tokenCost >= 1;
+            
+            voteForm.innerHTML = `<select id="user-vote-select" class="w-full bg-gray-700 rounded-lg p-2 text-white">
+                <option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option>
+                <option value="2">2 (Aceptable)</option>
+                <option value="1">1 (Tolerable)</option>
+                <option value="0">0 (Rechazo)</option>
+            </select>`;
+            
+            if (currentVote !== undefined) {
+                document.getElementById('user-vote-select').value = currentVote;
+            } else {
+                 document.getElementById('user-vote-select').value = "2";
+            }
+
             modals.vote.classList.add('is-open');
         }
         
@@ -201,13 +294,74 @@
             document.getElementById('change-password-form').reset();
             modals.profile.classList.add('is-open');
         }
+        
+        function openAdminModal() {
+            const userListEl = document.getElementById('admin-user-list');
+            userListEl.innerHTML = '';
+            state.users.filter(u => !u.isAdmin).forEach(user => {
+                 userListEl.innerHTML += `
+                    <div class="p-3 bg-gray-800 rounded-lg">
+                        <p class="font-bold text-white mb-2">${user.name} (${user.username})</p>
+                        <form class="grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="handleAdminUpdateStats(event, '${user.username}')">
+                            <div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div>
+                            <div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div>
+                            <div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" class="w-full bg-gray-700 p-1 rounded"></div>
+                            <div class="flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div>
+                        </form>
+                        <form class="mt-4" onsubmit="handleAdminResetPassword(event, '${user.username}')">
+                             <label class="text-xs">Nueva Contraseña</label>
+                             <div class="flex gap-2">
+                                <input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded">
+                                <button type="submit" class="btn btn-warning text-sm">Reset Pass</button>
+                             </div>
+                        </form>
+                    </div>`;
+            });
+            modals.admin.classList.add('is-open');
+        }
 
         async function handleSubmitVote() {
             const gameId = document.getElementById('vote-form').dataset.gameid;
-            const votes = {};
-            document.querySelectorAll('#vote-form select').forEach(s => votes[s.dataset.username] = parseInt(s.value));
-            try { await apiCall(`/api/games/${gameId}/vote`, 'POST', { votes }); modals.vote.classList.remove('is-open'); await fetchState(); } 
+            const vote = parseInt(document.getElementById('user-vote-select').value);
+            try { await apiCall(`/api/games/${gameId}/vote`, 'POST', { vote }); modals.vote.classList.remove('is-open'); await fetchState(); } 
             catch(error) { alert(error.message); }
+        }
+        
+        async function handleAdminUpdateStats(e, username) {
+            e.preventDefault();
+            const form = e.target;
+            const stats = {
+                tokens: form.tokens.value,
+                vetoes: form.vetoes.value,
+                prestige: form.prestige.value
+            };
+            try {
+                const result = await apiCall('/admin/update-stats', 'POST', { username, ...stats });
+                alert(result.message);
+                await fetchState();
+            } catch (error) { alert(error.message); }
+        }
+
+        async function handleAdminResetPassword(e, username) {
+            e.preventDefault();
+            const newPassword = e.target.newPassword.value;
+            if (!newPassword) return alert('La contraseña no puede estar vacía.');
+            if (!confirm(`¿Seguro que quieres cambiar la contraseña de ${username}?`)) return;
+            try {
+                const result = await apiCall('/admin/reset-password', 'POST', { username, newPassword });
+                alert(result.message);
+                e.target.reset();
+            } catch (error) { alert(error.message); }
+        }
+        
+        async function handleAdminResetApp() {
+            if (!confirm("¿ESTÁS SEGURO? Esta acción borrará TODOS los juegos y reseteará las estadísticas de TODOS los jugadores. Es irreversible.")) return;
+            try {
+                const result = await apiCall('/admin/reset-all', 'POST');
+                alert(result.message);
+                modals.admin.classList.remove('is-open');
+                await fetchState();
+            } catch(error) { alert(error.message); }
         }
 
         async function handleCancel(gameId) {
@@ -243,7 +397,7 @@
 
         function logout() {
             localStorage.removeItem('accessToken');
-            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('app-container').classList.add('hidden');
             document.getElementById('login-container').classList.remove('hidden');
         }
 
@@ -254,21 +408,24 @@
                 const success = await fetchState();
                 if (success) {
                     document.getElementById('current-user-name').textContent = `Conectado como: ${state.currentUser?.name}`;
-                    document.getElementById('app-container').style.display = 'block';
+                    document.getElementById('app-container').classList.remove('hidden');
                 }
+            } else {
+                 document.getElementById('app-container').classList.add('hidden');
+                 document.getElementById('login-container').classList.remove('hidden');
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            modals = { addGame: document.getElementById('add-game-modal'), vote: document.getElementById('vote-modal'), profile: document.getElementById('profile-modal') };
+            modals = { addGame: document.getElementById('add-game-modal'), vote: document.getElementById('vote-modal'), profile: document.getElementById('profile-modal'), admin: document.getElementById('admin-modal') };
             document.getElementById('login-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const errorEl = document.getElementById('login-error'); errorEl.textContent = '';
                 try {
                     const response = await fetch(`${API_URL}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: e.target.username.value, password: e.target.password.value }) });
                     if (!response.ok) {
-                         const errData = await response.json();
-                         throw new Error(errData.message || 'Credenciales incorrectas');
+                         const errData = await response.json().catch(() => ({ message: 'Credenciales incorrectas' }));
+                         throw new Error(errData.message);
                     }
                     const { accessToken } = await response.json();
                     localStorage.setItem('accessToken', accessToken);
@@ -278,6 +435,8 @@
 
             document.getElementById('logout-btn').addEventListener('click', logout);
             document.getElementById('profile-btn').addEventListener('click', openProfileModal);
+            document.getElementById('admin-panel-btn').addEventListener('click', openAdminModal);
+            document.getElementById('admin-reset-app-btn').addEventListener('click', handleAdminResetApp);
             document.getElementById('add-game-btn').addEventListener('click', () => modals.addGame.classList.add('is-open'));
             document.querySelectorAll('.cancel-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal').classList.remove('is-open')));
             
