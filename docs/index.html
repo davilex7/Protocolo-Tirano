@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protocolo Tirano</title>
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
         .glassmorphism { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -16,26 +16,34 @@
         .btn-warning { background-color: #f59e0b; color: white; } .btn-warning:hover { background-color: #d97706; }
         .btn:disabled { background-color: #374151; opacity: 0.5; cursor: not-allowed; }
         .modal { display: none; } .modal.is-open { display: flex; }
-        #app-container { display: none; }
+        #app-container, #login-container.hidden { display: none; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body>
 
     <!-- Pantalla de Login -->
-    <div id="login-container" class="max-w-sm mx-auto mt-20">
-        <div class="glassmorphism p-8 rounded-lg">
-            <h1 class="text-3xl font-bold text-white text-center mb-6">Protocolo Tirano</h1>
-            <form id="login-form">
-                <div class="mb-4"><label for="username" class="block text-gray-300 mb-2">Usuario</label><input type="text" id="username" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required></div>
-                <div class="mb-6"><label for="password" class="block text-gray-300 mb-2">Contraseña</label><input type="password" id="password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required></div>
-                <button type="submit" class="btn btn-primary w-full py-3">Iniciar Sesión</button>
-                <p id="login-error" class="text-red-500 text-center mt-4 h-4"></p>
-            </form>
+    <div id="login-container" class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="max-w-sm w-full">
+            <div class="glassmorphism p-8 rounded-lg">
+                <h1 class="text-3xl font-bold text-white text-center mb-6">Protocolo Tirano</h1>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="username" class="block text-gray-300 mb-2">Usuario</label>
+                        <input type="text" id="username" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="password" class="block text-gray-300 mb-2">Contraseña</label>
+                        <input type="password" id="password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full py-3">Iniciar Sesión</button>
+                    <p id="login-error" class="text-red-500 text-center mt-4 h-4"></p>
+                </form>
+            </div>
         </div>
     </div>
 
-    <!-- Contenedor Principal de la App -->
-    <div id="app-container">
+    <!-- Contenedor Principal de la App (Oculto por defecto) -->
+    <div id="app-container" class="p-4 md:p-8">
         <div class="max-w-7xl mx-auto">
             <header class="mb-8 flex justify-between items-center flex-wrap gap-4">
                 <h1 class="text-4xl font-bold text-white">Dashboard</h1>
@@ -57,13 +65,13 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Modals (el resto del HTML es igual) -->
     <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3><form id="add-game-form"><input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4 text-white" required><div class="flex justify-end gap-4"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="submit" class="btn btn-primary">Confirmar</button></div></form></div></div>
     <div id="vote-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-2xl"><h3 class="text-2xl font-bold text-white mb-2">Votación: <span id="vote-game-name" class="text-blue-400"></span></h3><p class="text-gray-400 mb-6">Emite tu voto. Los votos '3' cuestan 1 Token de Prioridad. Los '0' generan 1.</p><form id="vote-form" class="space-y-4"></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="button" id="submit-vote" class="btn btn-primary">Registrar Votos</button></div></div></div>
     <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Perfil y Seguridad</h3><div id="profile-stats" class="mb-6"></div><form id="change-password-form"><h4 class="text-lg font-semibold text-white mb-4">Cambiar Contraseña</h4><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Contraseña Actual</label><input type="password" id="current-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Nueva Contraseña</label><input type="password" id="new-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><button type="submit" class="btn btn-primary w-full">Actualizar Contraseña</button><p id="password-feedback" class="text-center mt-4 h-4"></p></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
     
     <script>
-        const API_URL = '[https://protocolo-tirano.onrender.com](https://protocolo-tirano.onrender.com)'; // O 'http://localhost:3000' para desarrollo
+        const API_URL = 'https://protocolo-tirano.onrender.com'; // O 'http://localhost:3000' para desarrollo
         let state = {};
         let modals = {};
 
@@ -109,17 +117,21 @@
             const el = document.getElementById('nomination-status');
             const addBtn = document.getElementById('add-game-btn');
             const currentUser = state.users.find(u => u.username === state.currentUser.username);
-            const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && g.status === 'pending_vote');
             
             addBtn.disabled = false;
             el.textContent = '';
+            
+            if(!currentUser) return; // Guard against render before state is fully loaded
 
             if (currentUser.nominationCooldownUntil && new Date(currentUser.nominationCooldownUntil) > new Date()) {
                 addBtn.disabled = true;
                 el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`;
-            } else if (pendingNomination) {
-                addBtn.disabled = true;
-                el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`;
+            } else {
+                const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && g.status === 'pending_vote');
+                 if (pendingNomination) {
+                    addBtn.disabled = true;
+                    el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`;
+                }
             }
         }
 
@@ -139,7 +151,6 @@
         }
         
         function createGameHTML(game) {
-            // ... (resto de la función createGameHTML, sin cambios)
             if (game.status === 'pending_vote') {
                 const canCancel = game.nominatedBy === state.currentUser.username;
                 const nominator = state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy;
@@ -149,7 +160,6 @@
                 const vetoer = state.users.find(p => p.username === game.vetoedBy);
                 return `<div class="p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50"><div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name}</span><span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}</span></div></div>`;
             }
-            // Active games
             const getVoteBadge = (vote) => `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[vote]}">${vote}</span>`;
             const playerVotesHTML = state.users.map(p => `<div class="flex flex-col items-center"><span class="text-xs text-gray-400 mb-1">${p.name}</span>${getVoteBadge(game.votes[p.username] ?? null)}</div>`).join('');
             const hasZeroVote = Object.values(game.votes).includes(0);
@@ -157,7 +167,6 @@
 
             return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white">${game.name}</h4><div class="flex items-center gap-4"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
         }
-
 
         function calculateScores() {
             const scores = {};
@@ -174,7 +183,6 @@
         }
 
         // --- MANEJO DE EVENTOS Y MODALES ---
-
         function openVoteModal(gameId) {
             const game = state.games.find(g => g._id === gameId);
             document.getElementById('vote-game-name').textContent = game.name;
@@ -189,9 +197,6 @@
         }
         
         function openProfileModal() {
-            const currentUser = state.users.find(u => u.username === state.currentUser.username);
-            const statsEl = document.getElementById('profile-stats');
-            statsEl.innerHTML = `<p class="text-gray-300">Aquí puedes ver tus estadísticas y gestionar tu cuenta.</p>`;
             document.getElementById('password-feedback').textContent = '';
             document.getElementById('change-password-form').reset();
             modals.profile.classList.add('is-open');
@@ -220,33 +225,32 @@
         async function handleChangePassword(e) {
             e.preventDefault();
             const feedbackEl = document.getElementById('password-feedback');
-            feedbackEl.textContent = '';
+            feedbackEl.textContent = 'Actualizando...';
+            feedbackEl.className = 'text-center mt-4 h-4 text-yellow-400';
             const currentPassword = e.target['current-password'].value;
             const newPassword = e.target['new-password'].value;
 
             try {
                 const result = await apiCall('/api/user/change-password', 'POST', { currentPassword, newPassword });
                 feedbackEl.textContent = result.message;
-                feedbackEl.classList.remove('text-red-500');
-                feedbackEl.classList.add('text-green-500');
+                feedbackEl.classList.replace('text-yellow-400', 'text-green-500');
                 e.target.reset();
             } catch(error) {
                 feedbackEl.textContent = error.message;
-                feedbackEl.classList.add('text-red-500');
-                feedbackEl.classList.remove('text-green-500');
+                feedbackEl.classList.replace('text-yellow-400', 'text-red-500');
             }
         }
 
         function logout() {
             localStorage.removeItem('accessToken');
             document.getElementById('app-container').style.display = 'none';
-            document.getElementById('login-container').style.display = 'block';
+            document.getElementById('login-container').classList.remove('hidden');
         }
 
         async function initializeApp() {
             const token = localStorage.getItem('accessToken');
             if (token) {
-                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('login-container').classList.add('hidden');
                 const success = await fetchState();
                 if (success) {
                     document.getElementById('current-user-name').textContent = `Conectado como: ${state.currentUser?.name}`;
@@ -262,7 +266,10 @@
                 const errorEl = document.getElementById('login-error'); errorEl.textContent = '';
                 try {
                     const response = await fetch(`${API_URL}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: e.target.username.value, password: e.target.password.value }) });
-                    if (!response.ok) throw new Error('Credenciales incorrectas');
+                    if (!response.ok) {
+                         const errData = await response.json();
+                         throw new Error(errData.message || 'Credenciales incorrectas');
+                    }
                     const { accessToken } = await response.json();
                     localStorage.setItem('accessToken', accessToken);
                     await initializeApp();
@@ -273,12 +280,14 @@
             document.getElementById('profile-btn').addEventListener('click', openProfileModal);
             document.getElementById('add-game-btn').addEventListener('click', () => modals.addGame.classList.add('is-open'));
             document.querySelectorAll('.cancel-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal').classList.remove('is-open')));
+            
             document.getElementById('add-game-form').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const input = document.getElementById('new-game-name'); if (!input.value.trim()) return;
                 try { await apiCall('/api/games', 'POST', { name: input.value.trim() }); input.value = ''; modals.addGame.classList.remove('is-open'); await fetchState(); } 
                 catch (error) { alert(error.message); }
             });
+            
             document.getElementById('submit-vote').addEventListener('click', handleSubmitVote);
             document.getElementById('change-password-form').addEventListener('submit', handleChangePassword);
 
