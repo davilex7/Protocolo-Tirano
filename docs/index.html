@@ -8,139 +8,332 @@
     <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
-        .modal { display: none; }
-        .modal.is-open { display: flex; }
         .glassmorphism { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; }
         .btn-primary { background-color: #3b82f6; color: white; } .btn-primary:hover { background-color: #2563eb; }
+        .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover { background-color: #374151; }
         .btn-danger { background-color: #ef4444; color: white; } .btn-danger:hover { background-color: #dc2626; }
+        .btn-warning { background-color: #f59e0b; color: white; } .btn-warning:hover { background-color: #d97706; }
+        .modal { display: none; } .modal.is-open { display: flex; }
+        #app-container { display: none; }
     </style>
 </head>
 <body class="p-4 md:p-8">
 
-    <div class="max-w-7xl mx-auto">
-        <header class="mb-8 text-center">
-            <h1 class="text-4xl font-bold text-white mb-2">Protocolo Tirano</h1>
-        </header>
-
-        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <section class="lg:col-span-1 p-6 rounded-lg glassmorphism">
-                <h2 class="text-2xl font-bold text-white mb-4">Ranking de Versatilidad</h2>
-                <div id="player-ranking" class="space-y-3"></div>
-            </section>
-
-            <section class="lg:col-span-2 p-6 rounded-lg glassmorphism">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold text-white">Lista de Juegos</h2>
-                    <button id="add-game-btn" class="btn-primary font-semibold py-2 px-4 rounded-lg">Nominar Juego</button>
-                </div>
-                <div id="game-list" class="space-y-4"></div>
-            </section>
-        </main>
-    </div>
-
-    <!-- Modals (Add Game, Vote, etc. irían aquí, igual que antes) -->
-    <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
-        <div class="glassmorphism rounded-lg p-8 w-full max-w-md">
-            <h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3>
-            <form id="add-game-form">
-                <input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4" required>
-                <div class="flex justify-end gap-4">
-                    <button type="button" id="cancel-add-game" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg">Cancelar</button>
-                    <button type="submit" class="btn-primary font-semibold py-2 px-4 rounded-lg">Confirmar</button>
-                </div>
+    <!-- Pantalla de Login -->
+    <div id="login-container" class="max-w-sm mx-auto mt-20">
+        <div class="glassmorphism p-8 rounded-lg">
+            <h1 class="text-3xl font-bold text-white text-center mb-6">Protocolo Tirano</h1>
+            <form id="login-form">
+                <div class="mb-4"><label for="username" class="block text-gray-300 mb-2">Usuario</label><input type="text" id="username" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required></div>
+                <div class="mb-6"><label for="password" class="block text-gray-300 mb-2">Contraseña</label><input type="password" id="password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none" required></div>
+                <button type="submit" class="btn btn-primary w-full py-3">Iniciar Sesión</button>
+                <p id="login-error" class="text-red-500 text-center mt-4 h-4"></p>
             </form>
         </div>
     </div>
+
+    <!-- Contenedor Principal de la App -->
+    <div id="app-container">
+        <div class="max-w-7xl mx-auto">
+            <header class="mb-8 flex justify-between items-center">
+                <h1 class="text-4xl font-bold text-white">Dashboard</h1>
+                <div><span id="current-user-name" class="text-gray-300 mr-4"></span><button id="logout-btn" class="text-sm text-red-400 hover:text-red-500">Cerrar Sesión</button></div>
+            </header>
+
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <section class="lg:col-span-1 p-6 rounded-lg glassmorphism"><h2 class="text-2xl font-bold text-white mb-4">Ranking de Jugadores</h2><div id="player-ranking" class="space-y-3"></div></section>
+                <section class="lg:col-span-2 p-6 rounded-lg glassmorphism">
+                    <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-white">Lista de Juegos</h2><button id="add-game-btn" class="btn btn-primary">Nominar Juego</button></div>
+                    <p id="nomination-status" class="text-yellow-400 text-sm mb-4 h-5"></p>
+                    <div id="game-list" class="space-y-4"></div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3><form id="add-game-form"><input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4 text-white" required><div class="flex justify-end gap-4"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="submit" class="btn btn-primary">Confirmar</button></div></form></div></div>
+    <div id="vote-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center"><div class="glassmorphism rounded-lg p-8 w-full max-w-2xl"><h3 class="text-2xl font-bold text-white mb-2">Votación: <span id="vote-game-name" class="text-blue-400"></span></h3><p class="text-gray-400 mb-6">Emite tu voto. Los votos '3' cuestan 1 Token de Prioridad. Los '0' generan 1.</p><form id="vote-form" class="space-y-4"></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="button" id="submit-vote" class="btn btn-primary">Registrar Votos</button></div></div></div>
     
     <script>
-        // --- CONFIGURACIÓN ---
-        // CAMBIAR EN PRODUCCIÓN
-        const API_URL = 'https://protocolo-tirano.onrender.com'; 
-
-        let state = {
-            players: [],
-            games: []
-        };
+        const API_URL = 'https://protocolo-tirano.onrender.com';
+        let state = {};
+        let modals = {};
 
         // --- LÓGICA DE LA API ---
-        async function fetchState() {
-            try {
-                const response = await fetch(`${API_URL}/api/state`);
-                state = await response.json();
-                render();
-            } catch (error) {
-                console.error("Error al cargar el estado:", error);
-                alert("No se pudo conectar con el servidor.");
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const token = localStorage.getItem('accessToken');
+            const options = {
+                method,
+                headers: { 'Authorization': `Bearer ${token}` }
+            };
+            if (body) {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(body);
             }
+            const response = await fetch(`${API_URL}${endpoint}`, options);
+            if (response.status === 401 || response.status === 403) {
+                logout();
+                throw new Error('Unauthorized');
+            }
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'API Error');
+            }
+            return response.json();
         }
 
-        async function nominateGame(name) {
-            await fetch(`${API_URL}/api/games`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            });
-            await fetchState(); // Recargar el estado para ver el nuevo juego
+        async function fetchState() {
+            try {
+                state = await apiCall('/api/state');
+                render();
+            } catch (error) { console.error("Error al cargar estado:", error); }
         }
-        
-        // ... aquí irían las demás funciones para votar, vetar, etc.
-        // por ejemplo: async function voteForGame(gameId, votes) { ... }
 
         // --- RENDERIZADO ---
         function render() {
-            // Ranking de Jugadores
-            const playerRankingEl = document.getElementById('player-ranking');
-            playerRankingEl.innerHTML = '';
-            // Calcular puntuaciones basado en los votos de los juegos activos
-            const playerScores = {};
-            state.players.forEach(p => playerScores[p._id] = 0);
-            
-            state.games.forEach(game => {
-                if (game.status === 'active') {
-                    for(const playerId in game.votes) {
-                        playerScores[playerId] += game.votes[playerId];
-                    }
-                }
-            });
-
-            const sortedPlayers = [...state.players].sort((a,b) => playerScores[b._id] - playerScores[a._id]);
-
-            sortedPlayers.forEach((player, index) => {
-                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-                 playerRankingEl.innerHTML += `<div class="p-4 rounded-lg bg-gray-800 flex justify-between items-center"><span>${medal} ${player.name}</span><span class="font-bold text-xl">${playerScores[player._id]}</span></div>`;
-            });
-
-            // Lista de Juegos
-            const gameListEl = document.getElementById('game-list');
-            gameListEl.innerHTML = '';
-            state.games.forEach(game => {
-                gameListEl.innerHTML += `
-                    <div class="p-4 rounded-lg bg-gray-800">
-                        <span class="font-bold">${game.name}</span>
-                        <span class="text-sm text-gray-400 ml-2">(${game.status})</span>
-                    </div>
-                `;
-            });
+            renderPlayerRanking();
+            renderGameList();
+            renderNominationStatus();
         }
 
-        // --- MANEJO DE EVENTOS ---
-        const addGameModal = document.getElementById('add-game-modal');
-        document.getElementById('add-game-btn').onclick = () => addGameModal.classList.add('is-open');
-        document.getElementById('cancel-add-game').onclick = () => addGameModal.classList.remove('is-open');
-        document.getElementById('add-game-form').onsubmit = async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('new-game-name');
-            if (input.value.trim()) {
-                await nominateGame(input.value.trim());
-                input.value = '';
-                addGameModal.classList.remove('is-open');
+        function renderPlayerRanking() {
+            const el = document.getElementById('player-ranking');
+            el.innerHTML = '';
+            const playerScores = calculateScores();
+            const sortedUsers = [...state.users].sort((a,b) => playerScores[b.username] - playerScores[a.username]);
+            sortedUsers.forEach((user, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                el.innerHTML += `
+                    <div class="p-4 rounded-lg bg-gray-800">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div>
+                            <div class="text-2xl font-bold text-blue-400">${playerScores[user.username] || 0}</div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center">
+                             <div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div>
+                             <div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div>
+                             <div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div>
+                        </div>
+                    </div>`;
+            });
+        }
+        
+        function renderNominationStatus() {
+            const el = document.getElementById('nomination-status');
+            const addBtn = document.getElementById('add-game-btn');
+            const currentUser = state.users.find(u => u.username === state.currentUser.username);
+            const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && g.status === 'pending_vote');
+            
+            addBtn.disabled = false;
+            el.textContent = '';
+
+            if (currentUser.nominationCooldownUntil && new Date(currentUser.nominationCooldownUntil) > new Date()) {
+                addBtn.disabled = true;
+                el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`;
+            } else if (pendingNomination) {
+                addBtn.disabled = true;
+                el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`;
             }
-        };
+        }
 
+        function renderGameList() {
+            const el = document.getElementById('game-list');
+            el.innerHTML = '';
+            // Ordenar juegos
+            const sortedGames = [...state.games].sort((a, b) => {
+                if(a.status === 'pending_vote' && b.status !== 'pending_vote') return -1;
+                if(a.status !== 'pending_vote' && b.status === 'pending_vote') return 1;
+                if(a.status === 'vetoed' && b.status !== 'vetoed') return 1;
+                if(a.status !== 'vetoed' && b.status === 'vetoed') return -1;
+                return b.totalScore - a.totalScore;
+            });
 
-        // --- INICIALIZACIÓN ---
-        document.addEventListener('DOMContentLoaded', fetchState);
+            if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos nominados.</p>'; return; }
+            
+            sortedGames.forEach(game => {
+                let gameHTML = '';
+                if (game.status === 'pending_vote') {
+                    gameHTML = createPendingGameHTML(game);
+                } else if (game.status === 'vetoed') {
+                    gameHTML = createVetoedGameHTML(game);
+                } else { // active
+                    gameHTML = createActiveGameHTML(game);
+                }
+                el.innerHTML += gameHTML;
+            });
+        }
+        
+        function createPendingGameHTML(game) {
+            const canCancel = game.nominatedBy === state.currentUser.username;
+            return `<div class="p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10">
+                        <div class="flex justify-between items-center">
+                            <div><span class="text-xl font-bold text-white">${game.name}</span><span class="text-xs text-gray-400 ml-2">de ${state.users.find(u=>u.username===game.nominatedBy)?.name}</span></div>
+                            <div class="flex gap-2">
+                                ${canCancel ? `<button class="btn btn-warning text-sm" onclick="handleCancel('${game._id}')">Cancelar</button>` : ''}
+                                <button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button>
+                            </div>
+                        </div>
+                    </div>`;
+        }
+
+        function createVetoedGameHTML(game) {
+            const vetoer = state.users.find(p => p.username === game.vetoedBy);
+            return `<div class="p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xl font-bold text-gray-400 line-through">${game.name}</span>
+                            <span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}</span>
+                        </div>
+                    </div>`;
+        }
+
+        function createActiveGameHTML(game) {
+            const getVoteBadge = (vote) => `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[vote]}">${vote}</span>`;
+            const playerVotesHTML = state.users.map(p => `<div class="flex flex-col items-center"><span class="text-xs text-gray-400 mb-1">${p.name}</span>${getVoteBadge(game.votes[p.username] ?? null)}</div>`).join('');
+            const hasZeroVote = Object.values(game.votes).includes(0);
+            const canBeVetoed = state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0);
+
+            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="text-xl font-bold text-white">${game.name}</h4>
+                            <div class="flex items-center gap-4">
+                                <div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div>
+                                ${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>
+                        ${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}
+                    </div>`;
+        }
+
+        function calculateScores() {
+            const scores = {};
+            state.users.forEach(u => scores[u.username] = 0);
+            state.games.forEach(game => {
+                if (game.status === 'active') {
+                    for (const username in game.votes) {
+                        if (scores[username] !== undefined) {
+                            scores[username] += game.votes[username];
+                        }
+                    }
+                }
+                game.totalScore = Object.values(game.votes).reduce((sum, vote) => sum + vote, 0);
+            });
+            return scores;
+        }
+
+        // --- MANEJO DE EVENTOS Y MODALES ---
+
+        function openVoteModal(gameId) {
+            const game = state.games.find(g => g._id === gameId);
+            document.getElementById('vote-game-name').textContent = game.name;
+            const voteForm = document.getElementById('vote-form');
+            voteForm.innerHTML = ''; voteForm.dataset.gameid = gameId;
+
+            state.users.forEach(user => {
+                let optionsHTML = '';
+                const canAfford3 = user.tokens >= 1;
+                optionsHTML += `<option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad Alta) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option>`;
+                optionsHTML += `<option value="2" selected>2 (Aceptable) - Cuesta 0 Tokens</option>`;
+                optionsHTML += `<option value="1">1 (Tolerable) - Cuesta 0 Tokens</option>`;
+                optionsHTML += `<option value="0">0 (Rechazo Absoluto) - Genera 1 Token</option>`;
+                voteForm.innerHTML += `<div class="grid grid-cols-3 items-center gap-4"><label class="font-semibold text-white">${user.name}:</label><select data-username="${user.username}" class="col-span-2 w-full bg-gray-700 rounded-lg p-2 text-white">${optionsHTML}</select></div>`;
+            });
+            modals.vote.classList.add('is-open');
+        }
+
+        async function handleSubmitVote() {
+            const gameId = document.getElementById('vote-form').dataset.gameid;
+            const votes = {};
+            document.querySelectorAll('#vote-form select').forEach(s => votes[s.dataset.username] = parseInt(s.value));
+            
+            try {
+                await apiCall(`/api/games/${gameId}/vote`, 'POST', { votes });
+                modals.vote.classList.remove('is-open');
+                await fetchState();
+            } catch(error) { alert(error.message); }
+        }
+
+        async function handleCancel(gameId) {
+            if (!confirm("¿Seguro que quieres cancelar tu nominación? No podrás nominar otro juego durante 24 horas.")) return;
+            try {
+                const result = await apiCall(`/api/games/${gameId}`, 'DELETE');
+                alert(result.message);
+                await fetchState();
+            } catch(error) { alert(error.message); }
+        }
+
+        async function handleVeto(gameId) {
+            if (!confirm("¿ESTÁS SEGURO? Esta acción es irreversible, gastará tu Veto y aplicará una penalización de Prestigio al nominador.")) return;
+            try {
+                const result = await apiCall(`/api/games/${gameId}/veto`, 'POST');
+                alert(result.message);
+                await fetchState();
+            } catch(error) { alert(error.message); }
+        }
+
+        // --- AUTENTICACIÓN Y ARRANQUE ---
+        
+        function logout() {
+            localStorage.removeItem('accessToken');
+            document.getElementById('app-container').style.display = 'none';
+            document.getElementById('login-container').style.display = 'block';
+        }
+
+        async function initializeApp() {
+            const token = localStorage.getItem('accessToken');
+            if (token) {
+                const success = await fetchState();
+                if (success) {
+                    document.getElementById('login-container').style.display = 'none';
+                    document.getElementById('app-container').style.display = 'block';
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            modals = {
+                addGame: document.getElementById('add-game-modal'),
+                vote: document.getElementById('vote-modal')
+            };
+            
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const errorEl = document.getElementById('login-error');
+                errorEl.textContent = '';
+                try {
+                    const response = await fetch(`${API_URL}/api/login`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: e.target.username.value, password: e.target.password.value })
+                    });
+                    if (!response.ok) throw new Error('Credenciales incorrectas');
+                    const { accessToken } = await response.json();
+                    localStorage.setItem('accessToken', accessToken);
+                    await initializeApp();
+                } catch (error) { errorEl.textContent = error.message; }
+            });
+
+            document.getElementById('logout-btn').addEventListener('click', logout);
+            document.getElementById('add-game-btn').addEventListener('click', () => modals.addGame.classList.add('is-open'));
+            document.querySelectorAll('.cancel-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal').classList.remove('is-open')));
+            
+            document.getElementById('add-game-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const input = document.getElementById('new-game-name');
+                if (!input.value.trim()) return;
+                try {
+                    await apiCall('/api/games', 'POST', { name: input.value.trim() });
+                    input.value = '';
+                    modals.addGame.classList.remove('is-open');
+                    await fetchState();
+                } catch (error) { alert(error.message); }
+            });
+            
+            document.getElementById('submit-vote').addEventListener('click', handleSubmitVote);
+
+            initializeApp();
+        });
     </script>
-
 </body>
 </html>
