@@ -3,6 +3,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const path = require('path'); // Importante: Módulo 'path' de Node.js
 require('dotenv').config();
 
 const app = express();
@@ -11,7 +12,6 @@ const client = new MongoClient(process.env.MONGODB_URI);
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('docs'));
 
 let db;
 let usersCollection;
@@ -38,7 +38,7 @@ async function main() {
         usersCollection = db.collection('users');
         gamesCollection = db.collection('games');
 
-        // --- Inicialización de la Base de Datos ---
+        // --- Inicialización de la Base de Datos (sin cambios) ---
         const count = await usersCollection.countDocuments();
         if (count === 0) {
             console.log("Base de datos de usuarios vacía. Creando usuarios iniciales...");
@@ -65,133 +65,115 @@ async function main() {
             console.log("Usuarios creados con éxito.");
         }
 
-        // --- RUTAS DE LA API ---
-
-        app.post('/api/login', async (req, res) => {
+        // --- DEFINICIÓN DEL ROUTER DE LA API ---
+        const apiRouter = express.Router();
+        
+        // Rutas que no requieren autenticación
+        apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
-            if (!user) return res.status(400).send('Usuario o contraseña incorrectos');
+            if (!user) return res.status(400).send({ message: 'Usuario o contraseña incorrectos' });
             if (await bcrypt.compare(password, user.password)) {
                 const accessToken = jwt.sign({ username: user.username, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1d' });
                 res.json({ accessToken });
             } else {
-                res.status(400).send('Usuario o contraseña incorrectos');
+                res.status(400).send({ message: 'Usuario o contraseña incorrectos' });
             }
         });
-        
-        // --- RUTAS PROTEGIDAS ---
 
-        app.get('/api/state', authenticateToken, async (req, res) => {
+        // A partir de aquí, todas las rutas del router usan el middleware
+        apiRouter.use(authenticateToken);
+
+        apiRouter.get('/state', async (req, res) => {
             try {
-                const users = await db.collection('users').find({}, { projection: { password: 0 } }).toArray();
-                const games = await db.collection('games').find({}).toArray();
+                const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
+                const games = await gamesCollection.find({}).toArray();
                 res.json({ users, games, currentUser: req.user });
             } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
         });
         
-        app.post('/api/user/change-password', authenticateToken, async (req, res) => {
+        apiRouter.post('/user/change-password', async (req, res) => {
             const { currentPassword, newPassword } = req.body;
-            const username = req.user.username;
-
-            if (!currentPassword || !newPassword || newPassword.length < 6) {
-                return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
-            }
-
-            const user = await usersCollection.findOne({ username });
-            if (!user) return res.status(404).json({ message: 'Usuario no encontrado.' });
+            if (!currentPassword || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
             
-            const isMatch = await bcrypt.compare(currentPassword, user.password);
-            if (!isMatch) return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
+            const user = await usersCollection.findOne({ username: req.user.username });
+            if (!user || !await bcrypt.compare(currentPassword, user.password)) return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
 
             const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-            await usersCollection.updateOne({ username }, { $set: { password: hashedNewPassword } });
-
+            await usersCollection.updateOne({ username: req.user.username }, { $set: { password: hashedNewPassword } });
             res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         });
 
-        app.post('/api/games', authenticateToken, async (req, res) => {
-            const { name } = req.body;
-            const nominatorUsername = req.user.username;
-
-            const user = await usersCollection.findOne({ username: nominatorUsername });
-            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) {
-                return res.status(403).json({ message: `No puedes nominar hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
-            }
-            const pendingNomination = await gamesCollection.findOne({ nominatedBy: nominatorUsername, status: 'pending_vote' });
-            if (pendingNomination) {
-                return res.status(403).json({ message: 'Ya tienes una nominación pendiente de voto.' });
-            }
-            const newGame = { name, status: 'pending_vote', votes: {}, totalScore: 0, nominatedBy: nominatorUsername };
-            const result = await gamesCollection.insertOne(newGame);
-            res.status(201).json(result);
+        apiRouter.post('/games', async (req, res) => {
+            const user = await usersCollection.findOne({ username: req.user.username });
+            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `No puedes nominar hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
+            const pendingNomination = await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' });
+            if (pendingNomination) return res.status(403).json({ message: 'Ya tienes una nominación pendiente de voto.' });
+            
+            const newGame = { name: req.body.name, status: 'pending_vote', votes: {}, totalScore: 0, nominatedBy: req.user.username };
+            await gamesCollection.insertOne(newGame);
+            res.status(201).json(newGame);
         });
 
-        app.delete('/api/games/:id', authenticateToken, async (req, res) => {
-            const gameId = req.params.id;
-            const username = req.user.username;
-            const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-            if (game.nominatedBy !== username) return res.status(403).json({ message: 'No puedes cancelar una nominación que no es tuya.' });
+        apiRouter.delete('/games/:id', async (req, res) => {
+            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+            if (!game || game.nominatedBy !== req.user.username) return res.status(403).json({ message: 'Acción no permitida.' });
             if (game.status !== 'pending_vote') return res.status(400).json({ message: 'Solo se pueden cancelar nominaciones pendientes.' });
 
-            await gamesCollection.deleteOne({ _id: new ObjectId(gameId) });
-            const cooldownUntil = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
-            await usersCollection.updateOne({ username }, { $set: { nominationCooldownUntil: cooldownUntil } });
+            await gamesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+            const cooldownUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            await usersCollection.updateOne({ username: req.user.username }, { $set: { nominationCooldownUntil: cooldownUntil } });
             res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
         });
 
-        app.post('/api/games/:id/vote', authenticateToken, async (req, res) => {
-            const gameId = req.params.id;
-            const votes = req.body.votes;
-            
-            const voters = Object.keys(votes);
-            const users = await usersCollection.find({ username: { $in: voters } }).toArray();
+        apiRouter.post('/games/:id/vote', async (req, res) => {
+            const { votes } = req.body;
+            const users = await usersCollection.find({ username: { $in: Object.keys(votes) } }).toArray();
             const userMap = new Map(users.map(u => [u.username, u]));
             
-            for (const username of voters) {
-                if (votes[username] === 3 && userMap.get(username).tokens < 1) {
-                    return res.status(400).json({ message: `El jugador ${username} no tiene suficientes Tokens de Prioridad para votar '3'.` });
-                }
+            for (const username in votes) {
+                if (votes[username] === 3 && userMap.get(username).tokens < 1) return res.status(400).json({ message: `El jugador ${username} no tiene Tokens de Prioridad.` });
             }
             
-            const bulkOps = voters.map(username => {
-                const vote = votes[username];
-                let tokenChange = 0;
-                if (vote === 3) tokenChange = -1;
-                if (vote === 0) tokenChange = 1;
-                
-                return {
-                    updateOne: {
-                        filter: { username: username },
-                        update: { $inc: { tokens: tokenChange } }
-                    }
-                };
+            const bulkOps = Object.keys(votes).map(username => {
+                let tokenChange = { 3: -1, 0: 1 }[votes[username]] || 0;
+                return { updateOne: { filter: { username }, update: { $inc: { tokens: tokenChange } } } };
             }).filter(op => op.updateOne.update.$inc.tokens !== 0);
 
             if (bulkOps.length > 0) await usersCollection.bulkWrite(bulkOps);
-            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { votes, status: 'active' } });
+            await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { votes, status: 'active' } });
             res.status(200).json({ message: 'Votos registrados.' });
         });
 
-        app.post('/api/games/:id/veto', authenticateToken, async (req, res) => {
-            const gameId = req.params.id;
-            const vetoerUsername = req.user.username;
-
-            const vetoer = await usersCollection.findOne({ username: vetoerUsername });
+        apiRouter.post('/games/:id/veto', async (req, res) => {
+            const vetoer = await usersCollection.findOne({ username: req.user.username });
             if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
 
-            const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-            if (!game || game.votes[vetoerUsername] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
+            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+            if (!game || game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
-            await usersCollection.updateOne({ username: vetoerUsername }, { $inc: { vetoes: -1 } });
-            if (game.nominatedBy) {
-                 await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -5 } });
-            }
-            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { status: 'vetoed', vetoedBy: vetoerUsername } });
+            await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1 } });
+            if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -5 } });
+            await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'vetoed', vetoedBy: req.user.username } });
             
             res.status(200).json({ message: 'Juego vetado con éxito.' });
         });
+        
+        // --- CONFIGURACIÓN DE RUTAS PRINCIPAL ---
+        
+        // 1. Usar el router para todas las rutas que empiecen con /api
+        app.use('/api', apiRouter);
 
+        // 2. Servir los ficheros estáticos de la aplicación frontend
+        app.use(express.static(path.join(__dirname, 'docs')));
 
+        // 3. Ruta "catch-all" que devuelve el index.html para cualquier otra petición.
+        //    Esto es clave para que funcionen las Single Page Applications.
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(__dirname, 'docs', 'index.html'));
+        });
+
+        // Iniciar servidor
         app.listen(port, () => {
             console.log(`Servidor escuchando en http://localhost:${port}`);
         });
