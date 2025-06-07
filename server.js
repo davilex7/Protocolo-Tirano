@@ -3,13 +3,14 @@ const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const path = require('path'); // Importante: Módulo 'path' de Node.js
+const path = require('path'); // Módulo 'path' de Node.js
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 const client = new MongoClient(process.env.MONGODB_URI);
 
+// --- Middlewares Globales ---
 app.use(cors());
 app.use(express.json());
 
@@ -38,7 +39,7 @@ async function main() {
         usersCollection = db.collection('users');
         gamesCollection = db.collection('games');
 
-        // --- Inicialización de la Base de Datos (sin cambios) ---
+        // --- Inicialización de la Base de Datos ---
         const count = await usersCollection.countDocuments();
         if (count === 0) {
             console.log("Base de datos de usuarios vacía. Creando usuarios iniciales...");
@@ -48,17 +49,11 @@ async function main() {
                 { username: 'sergio', password: 'sergio123', name: 'Sergio' },
                 { username: 'miguel', password: 'miguel123', name: 'Miguel' },
             ];
-            
             const hashedUsers = await Promise.all(users.map(async user => {
                 const hashedPassword = await bcrypt.hash(user.password, 10);
                 return {
-                    username: user.username,
-                    password: hashedPassword,
-                    name: user.name,
-                    tokens: 3,
-                    vetoes: 1,
-                    prestige: 0,
-                    nominationCooldownUntil: null,
+                    username: user.username, password: hashedPassword, name: user.name,
+                    tokens: 3, vetoes: 1, prestige: 0, nominationCooldownUntil: null,
                 };
             }));
             await usersCollection.insertMany(hashedUsers);
@@ -68,21 +63,20 @@ async function main() {
         // --- DEFINICIÓN DEL ROUTER DE LA API ---
         const apiRouter = express.Router();
         
-        // Rutas que no requieren autenticación
+        // Rutas de API (el código interno no cambia)
         apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
-            if (!user) return res.status(400).send({ message: 'Usuario o contraseña incorrectos' });
+            if (!user) return res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
             if (await bcrypt.compare(password, user.password)) {
                 const accessToken = jwt.sign({ username: user.username, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1d' });
                 res.json({ accessToken });
             } else {
-                res.status(400).send({ message: 'Usuario o contraseña incorrectos' });
+                res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
             }
         });
-
-        // A partir de aquí, todas las rutas del router usan el middleware
-        apiRouter.use(authenticateToken);
+        
+        apiRouter.use(authenticateToken); // Middleware para el resto de rutas de la API
 
         apiRouter.get('/state', async (req, res) => {
             try {
@@ -91,7 +85,7 @@ async function main() {
                 res.json({ users, games, currentUser: req.user });
             } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
         });
-        
+
         apiRouter.post('/user/change-password', async (req, res) => {
             const { currentPassword, newPassword } = req.body;
             if (!currentPassword || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
@@ -137,8 +131,9 @@ async function main() {
             
             const bulkOps = Object.keys(votes).map(username => {
                 let tokenChange = { 3: -1, 0: 1 }[votes[username]] || 0;
+                if (tokenChange === 0) return null;
                 return { updateOne: { filter: { username }, update: { $inc: { tokens: tokenChange } } } };
-            }).filter(op => op.updateOne.update.$inc.tokens !== 0);
+            }).filter(Boolean);
 
             if (bulkOps.length > 0) await usersCollection.bulkWrite(bulkOps);
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { votes, status: 'active' } });
@@ -164,11 +159,11 @@ async function main() {
         // 1. Usar el router para todas las rutas que empiecen con /api
         app.use('/api', apiRouter);
 
-        // 2. Servir los ficheros estáticos de la aplicación frontend
+        // 2. Servir los ficheros estáticos del frontend desde la carpeta /docs
         app.use(express.static(path.join(__dirname, 'docs')));
 
-        // 3. Ruta "catch-all" que devuelve el index.html para cualquier otra petición.
-        //    Esto es clave para que funcionen las Single Page Applications.
+        // 3. Ruta "catch-all" que devuelve el index.html para cualquier otra petición
+        //    que no sea de la API. Esto es clave para el enrutamiento del frontend.
         app.get('*', (req, res) => {
             res.sendFile(path.join(__dirname, 'docs', 'index.html'));
         });
@@ -178,7 +173,7 @@ async function main() {
             console.log(`Servidor escuchando en http://localhost:${port}`);
         });
 
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Fallo al iniciar el servidor:", e); }
 }
 
 main().catch(console.error);
