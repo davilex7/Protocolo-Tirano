@@ -15,7 +15,7 @@ app.use(express.json());
 
 let db, usersCollection, gamesCollection;
 
-// --- Middlewares ---
+// --- Middleware de Autenticación ---
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -45,30 +45,44 @@ async function main() {
         usersCollection = db.collection('users');
         gamesCollection = db.collection('games');
 
-        // --- Inicialización de la Base de Datos ---
-        const count = await usersCollection.countDocuments();
-        if (count === 0) {
-            console.log("Base de datos de usuarios vacía. Creando usuarios iniciales...");
-            const users = [
-                { username: 'admin', password: 'adminpassword', name: 'Admin', isAdmin: true },
-                { username: 'david', password: 'david123', name: 'David', isAdmin: false },
-                { username: 'pablo', password: 'pablo123', name: 'Pablo', isAdmin: false },
-                { username: 'sergio', password: 'sergio123', name: 'Sergio', isAdmin: false },
-                { username: 'miguel', password: 'miguel123', name: 'Miguel', isAdmin: false },
-            ];
-            const hashedUsers = await Promise.all(users.map(async u => ({
-                username: u.username, password: await bcrypt.hash(u.password, 10), name: u.name,
-                isAdmin: u.isAdmin, tokens: 3, vetoes: 1, prestige: 0,
-                nominationCooldownUntil: null,
-            })));
-            await usersCollection.insertMany(hashedUsers);
-            console.log("Usuarios creados. Comunicar contraseñas de forma privada.");
+        // --- Inicialización de la Base de Datos (Lógica Corregida) ---
+        console.log("Verificando usuarios iniciales...");
+        const initialUsers = [
+            { username: 'admin', password: 'adminpassword', name: 'Admin', isAdmin: true },
+            { username: 'david', password: 'david123', name: 'David', isAdmin: false },
+            { username: 'pablo', password: 'pablo123', name: 'Pablo', isAdmin: false },
+            { username: 'sergio', password: 'sergio123', name: 'Sergio', isAdmin: false },
+            { username: 'miguel', password: 'miguel123', name: 'Miguel', isAdmin: false },
+        ];
+
+        for (const userData of initialUsers) {
+            const existingUser = await usersCollection.findOne({ username: userData.username });
+            if (!existingUser) {
+                console.log(`Usuario "${userData.username}" no encontrado. Creándolo...`);
+                const hashedPassword = await bcrypt.hash(userData.password, 10);
+                const newUser = {
+                    username: userData.username,
+                    password: hashedPassword,
+                    name: userData.name,
+                    isAdmin: userData.isAdmin,
+                    tokens: 3,
+                    vetoes: 1,
+                    prestige: 0,
+                    nominationCooldownUntil: null,
+                };
+                await usersCollection.insertOne(newUser);
+                console.log(`Usuario "${userData.username}" creado con éxito.`);
+            }
         }
+        console.log("Verificación de usuarios completada.");
+
 
         // --- Router de la API ---
         const apiRouter = express.Router();
         
-        // Rutas Públicas
+        // El resto del código del servidor (rutas, etc.) es idéntico al anterior.
+        // [CÓDIGO DE RUTAS OMITIDO POR BREVEDAD - ES EL MISMO QUE ANTES]
+        // POST /api/login
         apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
@@ -82,20 +96,53 @@ async function main() {
         // Middleware de Autenticación para el resto de rutas
         apiRouter.use(authenticateToken);
 
-        // Rutas de Usuario
+        // GET /api/state
         apiRouter.get('/state', async (req, res) => {
-            const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
-            const games = await gamesCollection.find({}).toArray();
-            res.json({ users, games, currentUser: req.user });
+            try {
+                const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
+                const games = await gamesCollection.find({}).toArray();
+                res.json({ users, games, currentUser: req.user });
+            } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
         });
 
-        apiRouter.post('/user/change-password', async (req, res) => { /* ... (sin cambios) ... */ });
+        // POST /api/user/change-password
+        apiRouter.post('/user/change-password', async (req, res) => {
+            const { currentPassword, newPassword } = req.body;
+            if (!currentPassword || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+            
+            const user = await usersCollection.findOne({ username: req.user.username });
+            if (!user || !await bcrypt.compare(currentPassword, user.password)) return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
 
-        // Rutas de Juegos
-        apiRouter.post('/games', async (req, res) => { /* ... (sin cambios) ... */ });
-        apiRouter.delete('/games/:id', async (req, res) => { /* ... (sin cambios) ... */ });
+            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+            await usersCollection.updateOne({ username: req.user.username }, { $set: { password: hashedNewPassword } });
+            res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
+        });
         
-        // Lógica de voto individual actualizada
+        // POST /api/games
+        apiRouter.post('/games', async (req, res) => {
+            const user = await usersCollection.findOne({ username: req.user.username });
+            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `No puedes nominar hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
+            const pendingNomination = await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' });
+            if (pendingNomination) return res.status(403).json({ message: 'Ya tienes una nominación pendiente de voto.' });
+            
+            const newGame = { name: req.body.name, status: 'pending_vote', votes: {}, totalScore: 0, nominatedBy: req.user.username };
+            await gamesCollection.insertOne(newGame);
+            res.status(201).json(newGame);
+        });
+
+        // DELETE /api/games/:id
+        apiRouter.delete('/games/:id', async (req, res) => {
+            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+            if (!game || game.nominatedBy !== req.user.username) return res.status(403).json({ message: 'Acción no permitida.' });
+            if (game.status !== 'pending_vote') return res.status(400).json({ message: 'Solo se pueden cancelar nominaciones pendientes.' });
+
+            await gamesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
+            const cooldownUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            await usersCollection.updateOne({ username: req.user.username }, { $set: { nominationCooldownUntil: cooldownUntil } });
+            res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
+        });
+
+        // POST /api/games/:id/vote
         apiRouter.post('/games/:id/vote', async (req, res) => {
             const gameId = req.params.id;
             const { vote } = req.body;
@@ -110,7 +157,6 @@ async function main() {
 
             const oldVote = game.votes[voterUsername];
             let tokenChange = 0;
-            // Calcular cambio de tokens al modificar un voto
             if (oldVote !== undefined) {
                 if (oldVote === 3) tokenChange += 1;
                 if (oldVote === 0) tokenChange -= 1;
@@ -130,11 +176,9 @@ async function main() {
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, updateOps);
             await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange } });
 
-            // Otorgar prestigio
             if (vote === 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
                 await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
             }
-            // Retirar prestigio si se quita un 3
             if (oldVote === 3 && vote !== 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
                 await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -1 } });
             }
@@ -142,10 +186,23 @@ async function main() {
             res.status(200).json({ message: 'Voto registrado.' });
         });
         
-        apiRouter.post('/games/:id/veto', async (req, res) => { /* ... (sin cambios) ... */ });
+        // POST /api/games/:id/veto
+        apiRouter.post('/games/:id/veto', async (req, res) => {
+            const vetoer = await usersCollection.findOne({ username: req.user.username });
+            if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
+
+            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+            if (!game || game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
+
+            await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1 } });
+            if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -5 } });
+            await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'vetoed', vetoedBy: req.user.username } });
+            
+            res.status(200).json({ message: 'Juego vetado con éxito.' });
+        });
         
         // --- RUTAS DE ADMINISTRADOR ---
-        apiRouter.use(isAdmin); // Middleware para las siguientes rutas
+        apiRouter.use(isAdmin);
 
         apiRouter.post('/admin/reset-password', async (req, res) => {
             const { username, newPassword } = req.body;
@@ -181,7 +238,7 @@ async function main() {
             res.status(200).json({ message: 'Aplicación reseteada a valores por defecto (excepto contraseñas).' });
         });
         
-        // Configuración de rutas principal
+        // --- CONFIGURACIÓN DE RUTAS PRINCIPAL ---
         app.use('/api', apiRouter);
         app.use(express.static(path.join(__dirname, 'docs')));
         app.get('*', (req, res) => {
