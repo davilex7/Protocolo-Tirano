@@ -1,15 +1,17 @@
 {
-    "name": "protocolo-tirano-backend",
+    "name": "protocolo-tirano-backend-auth",
     "version": "1.0.0",
-    "description": "Servidor para la aplicación de gestión de competición Protocolo Tirano.",
+    "description": "Servidor para la aplicación Protocolo Tirano con autenticación.",
     "main": "server.js",
     "scripts": {
-      "start": "node server.js"
+        "start": "node server.js"
     },
     "dependencies": {
-      "cors": "^2.8.5",
-      "dotenv": "^16.4.5",
-      "express": "^4.19.2",
-      "mongodb": "^6.5.0"
+        "bcrypt": "^5.1.1",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.5",
+        "express": "^4.19.2",
+        "jsonwebtoken": "^9.0.2",
+        "mongodb": "^6.5.0"
     }
-  }
+}
