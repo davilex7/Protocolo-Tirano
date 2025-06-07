@@ -10,7 +10,17 @@ const app = express();
 const port = process.env.PORT || 3000;
 const client = new MongoClient(process.env.MONGODB_URI);
 
-app.use(cors());
+// --- Middlewares Globales ---
+
+// **INICIO DE LA CORRECCIÓN CORS**
+// Configuración explícita de CORS para permitir cualquier origen y las cabeceras necesarias.
+app.use(cors({
+  origin: '*', // Permite peticiones de cualquier origen
+  methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization'] // Cabeceras permitidas
+}));
+// **FIN DE LA CORRECCIÓN CORS**
+
 app.use(express.json());
 
 let db, usersCollection, gamesCollection;
