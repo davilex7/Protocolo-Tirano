@@ -1,89 +1,74 @@
-# Protocolo Tirano IV: Sistema de Gestión de Competición
+# Guía de Campo: Protocolo Tirano
 
-## 1. Propósito
+## 1. ¿Qué es esta Guerra? (El Propósito)
 
-Esta aplicación es la implementación del **Protocolo Tirano IV**, una evolución del sistema diseñada para resolver un problema fundamental en un grupo de juego altamente competitivo: la necesidad de un método objetivo, cuantificable y a prueba de manipulación para:
+Esta aplicación es el árbitro digital de nuestra competición. Su misión es simple:
 
-1.  **Determinar objetivamente la versatilidad** de cada miembro del grupo, es decir, su disposición real a participar en una variedad de juegos.
+1.  **Medir la Versatilidad:** Determinar matemáticamente quién es el jugador más versátil a través de un sistema de puntuación que refleja la disposición real a jugar. El resultado es el **Ranking de Jugadores**.
+2.  **Eliminar el Debate:** Generar una lista de juegos ordenada por el deseo colectivo del grupo. Cuando nos juntemos los cuatro, esta **Lista Jerarquizada** dictará a qué se juega, sin discusiones.
 
-2.  **Generar una lista jerarquizada** de juegos para jugar cuando el grupo se reúne, eliminando debates subjetivos y el "consenso mediocre".
+El sistema está diseñado para que cada acción estratégica tenga un coste o una consecuencia. No hay lugar para la explotación.
 
-Este protocolo neutraliza las estrategias de explotación táctica (votos de "sí falsos", "3 falsos" o "vetos estratégicos") mediante una economía interna y reglas condicionales estrictas.
+## 2. El Arsenal (Tus Recursos y Reglas)
 
-## 2. Conceptos Fundamentales
+Cada jugador gestiona una serie de recursos que definen su influencia en la partida.
 
-El sistema se rige por una serie de mecanismos diseñados para imponer un coste a la opinión, forzando así la honestidad estratégica.
+### Tokens de Prioridad: La Moneda de la Influencia
 
-### Puntos de Convicción (PC)
+Para expresar un interés máximo en un juego, primero debes demostrar tu capacidad de rechazo.
 
-Es el recurso central de la economía del sistema.
+* **Votar "3" (Prioridad Alta):** Cuesta **1 Token de Prioridad**. Úsalo para los juegos que de verdad quieres jugar.
+* **Votar "0" (Rechazo Absoluto):** Genera **1 Token de Prioridad**. Es la única forma de ganar nuevos tokens.
+* **Votos "2" y "1":** No tienen coste ni recompensa. Son el pan de cada día.
+* **Capital Inicial:** Cada jugador comienza con **3 Tokens**.
 
-* **Asignación:** Cada jugador recibe **10 PC** al inicio de cada ciclo mensual.
+### Vetos: La Bala de Plata
 
-* **Ciclo:** Los ciclos se resetean automáticamente el día 1 de cada mes. Los PC no gastados **no se acumulan**.
+El Veto es tu herramienta más poderosa. Es un recurso de destrucción definitiva.
 
-* **Función:** Los PC se gastan para emitir votos de alto valor. Este mecanismo es la principal defensa contra la inflación de votos. Obliga a cada jugador a gestionar un presupuesto de "convicción".
+* **Asignación:** Cada jugador tiene **un (1) Veto**. No se regenera. Una vez usado, se ha ido.
+* **Condición de Uso:** Para poder vetar un juego, es **obligatorio** haberle votado **"0"** previamente. No puedes vetar un juego que toleras.
+* **Consecuencias:**
+    1.  Tú gastas tu Veto.
+    2.  El jugador que nominó el juego vetado sufre una penalización de **-5 Puntos de Prestigio**.
 
-### El Coste del Voto
+### Prestigio: El Marcador de Honor (o Vergüenza)
 
-* **Votar 3 (Prioridad Alta):** Cuesta **3 PC**.
+El Prestigio es una puntuación permanente que mide tu reputación estratégica.
 
-* **Votar 2 (Aceptable):** Cuesta **1 PC**.
+* Empiezas en 0.
+* Sufres una penalización de **-5 de Prestigio** cada vez que una de tus nominaciones es vetada por otro jugador.
+* Una puntuación de Prestigio negativa es una marca pública de haber realizado nominaciones de baja calidad o directamente hostiles.
 
-* **Votar 1 (Tolerable):** Cuesta **0 PC**.
+## 3. Manual de Combate (Cómo Usar la App)
 
-* **Votar 0 (Rechazo Absoluto):** Cuesta **0 PC**.
+#### Iniciar Sesión
 
-### Vetos de Temporada (Regla Clave)
+Usa el nombre de usuario y la contraseña inicial que se te haya asignado. **Es muy recomendable cambiar la contraseña desde el menú "Perfil" la primera vez que inicies sesión.**
 
-El Veto es el recurso más poderoso y está sujeto a una condición estricta para prevenir su uso táctico:
+#### Nominar un Juego
 
-* **Asignación:** Cada jugador dispone de **un (1) Veto** por temporada (ej. 3-6 meses).
+1.  Haz clic en "Nominar Juego".
+2.  **Regla Clave:** No puedes nominar un nuevo juego si ya tienes una propuesta tuya esperando a ser votada. Tu nominación debe ser votada por el grupo para que puedas proponer otra.
 
-* **Condición de Uso:** Para poder ejercer un Veto sobre un juego, es **requisito indispensable** que el jugador que veta le haya asignado previamente una puntuación de **0 (Rechazo Absoluto)** durante la fase de votación.
+#### Cancelar tu Nominación
 
-* **Función:** Esta regla asegura que el Veto se utilice como una herramienta de rechazo genuino contra un juego que un miembro aborrece, y no como un movimiento estratégico para alterar el ranking a su favor. Un Veto elimina el juego de la competición de forma definitiva.
+Si tu propuesta está pendiente y ves que no va a ningún lado, puedes cancelarla.
 
-## 3. Funcionamiento de la Aplicación
+* **Consecuencia:** Al cancelar, entras en un **cooldown de 24 horas**. Durante este tiempo, no podrás nominar otro juego. Es una retirada táctica, no un reintento gratuito.
 
-### Flujo de Trabajo Estándar
+#### Votar
 
-1.  **Nominar Juego:** Cualquier miembro puede nominar un título. Aparecerá en estado "Pendiente de Voto".
+Cuando un juego esté pendiente, haz clic en "Votar". Se abrirá un panel donde todos los jugadores deben emitir su voto simultáneamente (la persona que gestione la sesión introduce los votos de todos). Elige tu puntuación sabiamente según tu presupuesto de Tokens.
 
-2.  **Votar:** Todos los miembros votan por el juego nominado. El sistema valida que cada jugador tenga suficientes PC para su voto. Una vez votado, el juego pasa a estado "Activo".
+#### Vetar un Juego
 
-3.  **Vetar (Post-Votación):** **Solo después de que un juego ha sido votado**, si un jugador cumple las condiciones (tiene un Veto disponible y votó '0' a ese juego), aparecerá el botón "Vetar". Al hacer clic, podrá confirmar el Veto y eliminar el juego.
+* El botón de "Vetar" solo aparecerá junto a un juego que ya ha sido votado.
+* Solo podrás hacer clic si cumples las dos condiciones: tienes 1 Veto disponible **Y** votaste "0" a ese juego.
 
-### El Marcador
+#### Cambiar tu Contraseña
 
-* **Ranking de Versatilidad:** Muestra la puntuación total de cada jugador (la suma de los valores de sus votos).
+En el Dashboard, haz clic en "Perfil". Desde ahí podrás cambiar tu contraseña para asegurar tu cuenta.
 
-* **Lista de Juegos Jerarquizada:** Ordena los juegos "Activos" según su puntuación total. Esta es la guía indiscutible del orden de juego.
-
-## 4. Sincronización de Datos (MUY IMPORTANTE)
-
-Esta aplicación es 100% cliente y no tiene servidor. Para mantener la consistencia, es **OBLIGATORIO** seguir este protocolo:
-
-1.  **Designar un "Admin"** para registrar los cambios.
-
-2.  El Admin **registra** las acciones (votos, etc.).
-
-3.  El Admin hace clic en **"Exportar Datos"** para descargar el fichero `tirano4_db.json`.
-
-4.  El Admin **comparte** el fichero `.json` con el resto del grupo.
-
-5.  Los demás miembros hacen clic en **"Importar Datos"** y seleccionan el fichero recibido para actualizar su estado.
-
-**Este proceso debe repetirse con cada cambio para evitar la desincronización.**
-
-## 5. Gestión de la Temporada
-
-* **Forzar Reseteo de Ciclo:** Resetea los PC de todos los jugadores a 10.
-
-* **Resetear Temporada:** Es el "reinicio nuclear". Borra todos los juegos y puntuaciones, y restaura los PC y Vetos a sus valores iniciales.
-
-## 6. Ficha Técnica
-
-* **Tecnología:** HTML, Tailwind CSS, JavaScript.
-
-* **Alojamiento:** Diseñada para ser desplegada gratuitamente en **GitHub Pages**.
+---
+*Este documento es la única fuente de verdad sobre las reglas del Protocolo. Cualquier disputa se resolverá consultando esta guía.*
