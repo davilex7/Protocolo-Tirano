@@ -12,14 +12,19 @@ const client = new MongoClient(process.env.MONGODB_URI);
 
 // --- Middlewares Globales ---
 
-// **INICIO DE LA CORRECCIÓN CORS**
-// Configuración explícita de CORS para permitir cualquier origen y las cabeceras necesarias.
-app.use(cors({
-  origin: '*', // Permite peticiones de cualquier origen
-  methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'Authorization'] // Cabeceras permitidas
-}));
-// **FIN DE LA CORRECCIÓN CORS**
+// **INICIO DE LA CORRECCIÓN CORS DEFINITIVA**
+// 1. Configuración de CORS explícita
+const corsOptions = {
+  origin: '*', // O para mayor seguridad: 'https://davilex7.github.io'
+  methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
+
+// 2. Manejador explícito para las peticiones OPTIONS (Preflight)
+// Esto asegura que cualquier petición OPTIONS reciba la respuesta correcta inmediatamente.
+app.options('*', cors(corsOptions)); 
+// **FIN DE LA CORRECCIÓN CORS DEFINITIVA**
 
 app.use(express.json());
 
@@ -55,7 +60,7 @@ async function main() {
         usersCollection = db.collection('users');
         gamesCollection = db.collection('games');
 
-        // --- Inicialización de la Base de Datos (Lógica Corregida) ---
+        // --- Inicialización de la Base de Datos ---
         console.log("Verificando usuarios iniciales...");
         const initialUsers = [
             { username: 'admin', password: 'adminpassword', name: 'Admin', isAdmin: true },
@@ -71,13 +76,8 @@ async function main() {
                 console.log(`Usuario "${userData.username}" no encontrado. Creándolo...`);
                 const hashedPassword = await bcrypt.hash(userData.password, 10);
                 const newUser = {
-                    username: userData.username,
-                    password: hashedPassword,
-                    name: userData.name,
-                    isAdmin: userData.isAdmin,
-                    tokens: 3,
-                    vetoes: 1,
-                    prestige: 0,
+                    username: userData.username, password: hashedPassword, name: userData.name,
+                    isAdmin: userData.isAdmin, tokens: 3, vetoes: 1, prestige: 0,
                     nominationCooldownUntil: null,
                 };
                 await usersCollection.insertOne(newUser);
@@ -91,7 +91,6 @@ async function main() {
         const apiRouter = express.Router();
         
         // El resto del código del servidor (rutas, etc.) es idéntico al anterior.
-        // [CÓDIGO DE RUTAS OMITIDO POR BREVEDAD - ES EL MISMO QUE ANTES]
         // POST /api/login
         apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
@@ -103,10 +102,8 @@ async function main() {
             res.json({ accessToken });
         });
 
-        // Middleware de Autenticación para el resto de rutas
         apiRouter.use(authenticateToken);
 
-        // GET /api/state
         apiRouter.get('/state', async (req, res) => {
             try {
                 const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
@@ -115,7 +112,6 @@ async function main() {
             } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
         });
 
-        // POST /api/user/change-password
         apiRouter.post('/user/change-password', async (req, res) => {
             const { currentPassword, newPassword } = req.body;
             if (!currentPassword || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
@@ -128,7 +124,6 @@ async function main() {
             res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         });
         
-        // POST /api/games
         apiRouter.post('/games', async (req, res) => {
             const user = await usersCollection.findOne({ username: req.user.username });
             if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `No puedes nominar hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
@@ -140,7 +135,6 @@ async function main() {
             res.status(201).json(newGame);
         });
 
-        // DELETE /api/games/:id
         apiRouter.delete('/games/:id', async (req, res) => {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.nominatedBy !== req.user.username) return res.status(403).json({ message: 'Acción no permitida.' });
@@ -152,7 +146,6 @@ async function main() {
             res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
         });
 
-        // POST /api/games/:id/vote
         apiRouter.post('/games/:id/vote', async (req, res) => {
             const gameId = req.params.id;
             const { vote } = req.body;
@@ -161,7 +154,7 @@ async function main() {
             const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
             const voter = await usersCollection.findOne({ username: voterUsername });
             
-            if (voterUsername === game.nominatedBy && game.status === 'pending_vote') {
+            if (voterUsername === game.nominatedBy && Object.keys(game.votes).length === 0) {
                 return res.status(403).json({ message: 'No puedes ser el primero en votar tu propia nominación.' });
             }
 
@@ -184,7 +177,9 @@ async function main() {
             }
 
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, updateOps);
-            await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange } });
+            if (tokenChange !== 0) {
+                await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange } });
+            }
 
             if (vote === 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
                 await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
@@ -196,7 +191,6 @@ async function main() {
             res.status(200).json({ message: 'Voto registrado.' });
         });
         
-        // POST /api/games/:id/veto
         apiRouter.post('/games/:id/veto', async (req, res) => {
             const vetoer = await usersCollection.findOne({ username: req.user.username });
             if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
@@ -239,7 +233,7 @@ async function main() {
 
         apiRouter.post('/admin/reset-all', async (req, res) => {
             await gamesCollection.deleteMany({});
-            await usersCollection.updateMany({}, { $set: {
+            await usersCollection.updateMany({ isAdmin: false }, { $set: {
                 tokens: 3,
                 vetoes: 1,
                 prestige: 0,
