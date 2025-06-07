@@ -13,7 +13,7 @@ const client = new MongoClient(process.env.MONGODB_URI);
 // parsear JSON y servir los ficheros estáticos del frontend.
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static('docs'));
 
 let db;
 
