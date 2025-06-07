@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Protocolo Tirano</title>
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
+        .modal { display: none; }
+        .modal.is-open { display: flex; }
+        .glassmorphism { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .btn-primary { background-color: #3b82f6; color: white; } .btn-primary:hover { background-color: #2563eb; }
+        .btn-danger { background-color: #ef4444; color: white; } .btn-danger:hover { background-color: #dc2626; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-white mb-2">Protocolo Tirano</h1>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <section class="lg:col-span-1 p-6 rounded-lg glassmorphism">
+                <h2 class="text-2xl font-bold text-white mb-4">Ranking de Versatilidad</h2>
+                <div id="player-ranking" class="space-y-3"></div>
+            </section>
+
+            <section class="lg:col-span-2 p-6 rounded-lg glassmorphism">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-white">Lista de Juegos</h2>
+                    <button id="add-game-btn" class="btn-primary font-semibold py-2 px-4 rounded-lg">Nominar Juego</button>
+                </div>
+                <div id="game-list" class="space-y-4"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals (Add Game, Vote, etc. irían aquí, igual que antes) -->
+    <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center">
+        <div class="glassmorphism rounded-lg p-8 w-full max-w-md">
+            <h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3>
+            <form id="add-game-form">
+                <input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4" required>
+                <div class="flex justify-end gap-4">
+                    <button type="button" id="cancel-add-game" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" class="btn-primary font-semibold py-2 px-4 rounded-lg">Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        // --- CONFIGURACIÓN ---
+        // CAMBIAR EN PRODUCCIÓN
+        const API_URL = 'http://localhost:3000'; 
+
+        let state = {
+            players: [],
+            games: []
+        };
+
+        // --- LÓGICA DE LA API ---
+        async function fetchState() {
+            try {
+                const response = await fetch(`${API_URL}/api/state`);
+                state = await response.json();
+                render();
+            } catch (error) {
+                console.error("Error al cargar el estado:", error);
+                alert("No se pudo conectar con el servidor.");
+            }
+        }
+
+        async function nominateGame(name) {
+            await fetch(`${API_URL}/api/games`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            await fetchState(); // Recargar el estado para ver el nuevo juego
+        }
+        
+        // ... aquí irían las demás funciones para votar, vetar, etc.
+        // por ejemplo: async function voteForGame(gameId, votes) { ... }
+
+        // --- RENDERIZADO ---
+        function render() {
+            // Ranking de Jugadores
+            const playerRankingEl = document.getElementById('player-ranking');
+            playerRankingEl.innerHTML = '';
+            // Calcular puntuaciones basado en los votos de los juegos activos
+            const playerScores = {};
+            state.players.forEach(p => playerScores[p._id] = 0);
+            
+            state.games.forEach(game => {
+                if (game.status === 'active') {
+                    for(const playerId in game.votes) {
+                        playerScores[playerId] += game.votes[playerId];
+                    }
+                }
+            });
+
+            const sortedPlayers = [...state.players].sort((a,b) => playerScores[b._id] - playerScores[a._id]);
+
+            sortedPlayers.forEach((player, index) => {
+                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                 playerRankingEl.innerHTML += `<div class="p-4 rounded-lg bg-gray-800 flex justify-between items-center"><span>${medal} ${player.name}</span><span class="font-bold text-xl">${playerScores[player._id]}</span></div>`;
+            });
+
+            // Lista de Juegos
+            const gameListEl = document.getElementById('game-list');
+            gameListEl.innerHTML = '';
+            state.games.forEach(game => {
+                gameListEl.innerHTML += `
+                    <div class="p-4 rounded-lg bg-gray-800">
+                        <span class="font-bold">${game.name}</span>
+                        <span class="text-sm text-gray-400 ml-2">(${game.status})</span>
+                    </div>
+                `;
+            });
+        }
+
+        // --- MANEJO DE EVENTOS ---
+        const addGameModal = document.getElementById('add-game-modal');
+        document.getElementById('add-game-btn').onclick = () => addGameModal.classList.add('is-open');
+        document.getElementById('cancel-add-game').onclick = () => addGameModal.classList.remove('is-open');
+        document.getElementById('add-game-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('new-game-name');
+            if (input.value.trim()) {
+                await nominateGame(input.value.trim());
+                input.value = '';
+                addGameModal.classList.remove('is-open');
+            }
+        };
+
+
+        // --- INICIALIZACIÓN ---
+        document.addEventListener('DOMContentLoaded', fetchState);
+    </script>
+
+</body>
+</html>
