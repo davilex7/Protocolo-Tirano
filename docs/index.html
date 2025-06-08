@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protocolo Tirano</title>
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
-    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)" rel="stylesheet">
+    <!-- CORRECCIÓN: URLs limpias para los recursos CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; }
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
@@ -83,7 +84,7 @@
     <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-4xl max-h-screen overflow-y-auto"><h3 class="text-2xl font-bold text-white mb-6">Panel de Administración</h3><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Jugadores</h4><div id="admin-user-list" class="space-y-4"></div></div><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Juegos</h4><div id="admin-game-list" class="space-y-2"></div></div><div><h4 class="text-lg font-semibold text-white mb-4">Acciones Globales</h4><button id="admin-reset-app-btn" class="btn btn-danger">Resetear Aplicación</button></div><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
     
     <script>
-        const API_URL = '[https://protocolo-tirano.onrender.com](https://protocolo-tirano.onrender.com)';
+        const API_URL = 'https://protocolo-tirano.onrender.com';
         let state = {};
         let modals = {};
 
