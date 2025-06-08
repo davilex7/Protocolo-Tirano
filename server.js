@@ -35,7 +35,6 @@ const authenticateToken = (req, res, next) => {
 };
 
 const isAdmin = async (req, res, next) => {
-    // La propiedad 'isAdmin' ya está en el token JWT, por lo que no es necesario consultar la DB.
     if (req.user && req.user.isAdmin) {
         next();
     } else {
@@ -78,6 +77,11 @@ async function main() {
         // --- Router de la API ---
         const apiRouter = express.Router();
         
+        // **NUEVA RUTA DE HEALTH CHECK**
+        apiRouter.get('/health', (req, res) => {
+            res.status(200).json({ status: 'ok' });
+        });
+
         apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
@@ -88,16 +92,13 @@ async function main() {
             res.json({ accessToken });
         });
         
-        // A partir de aquí, TODAS las rutas requieren un token válido
         apiRouter.use(authenticateToken);
 
         // --- RUTAS PARA TODOS LOS USUARIOS AUTENTICADOS ---
         apiRouter.get('/state', async (req, res) => {
-            try {
-                const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
-                const games = await gamesCollection.find({}).toArray();
-                res.json({ users, games, currentUser: req.user });
-            } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
+            const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
+            const games = await gamesCollection.find({}).toArray();
+            res.json({ users, games, currentUser: req.user });
         });
 
         apiRouter.post('/user/change-password', async (req, res) => {
@@ -188,7 +189,7 @@ async function main() {
             res.status(200).json({ message: 'Juego vetado con éxito.' });
         });
         
-        // --- RUTAS DE ADMINISTRADOR (ahora protegidas individualmente) ---
+        // --- RUTAS DE ADMINISTRADOR ---
         apiRouter.post('/admin/reset-password', isAdmin, async (req, res) => {
             const { username, newPassword } = req.body;
             if (!username || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'Datos incompletos.' });
@@ -216,7 +217,7 @@ async function main() {
         apiRouter.post('/admin/games/:id/unveto', isAdmin, async (req, res) => {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.status !== 'vetoed') return res.status(400).json({ message: 'Este juego no está vetado.' });
-
+            
             await usersCollection.updateOne({ username: game.vetoedBy }, { $inc: { vetoes: 1 } });
             if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 5 } });
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'active' }, $unset: { vetoedBy: "" } });
