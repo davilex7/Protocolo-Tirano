@@ -154,21 +154,22 @@ async function main() {
             
             // --- INICIO DE LA LÓGICA DE PRESTIGIO CORREGIDA ---
             if (game.nominatedBy && game.nominatedBy !== voterUsername) {
-                // Crear una copia de los votos existentes, excluyendo al votante actual para ver el estado "anterior" de los demás.
+                // Estado de los votos de los otros jugadores ANTES de que el votante actual emita su voto.
                 const otherPlayerVotes = { ...game.votes };
                 delete otherPlayerVotes[voterUsername]; 
                 
-                // Comprobar si algún OTRO jugador ya había votado '3'
-                const hadOtherThrees = Object.values(otherPlayerVotes).some(v => v === 3);
+                // ¿Alguno de los otros jugadores externos ya había votado 3?
+                const hadOtherExternalThrees = Object.entries(otherPlayerVotes).some(
+                    ([user, voteValue]) => user !== game.nominatedBy && voteValue === 3
+                );
 
-                // Condición para GANAR prestigio: El nuevo voto es '3' Y ningún otro jugador había votado '3' antes.
-                const isNowFirstExternalThree = vote === 3 && !hadOtherThrees;
-                // Condición para PERDER prestigio: El voto anterior era '3', ningún otro jugador había votado '3', y el nuevo voto ya no es '3'.
-                const wasFirstExternalThree = oldVote === 3 && !hadOtherThrees;
-
-                if (isNowFirstExternalThree && oldVote !== 3) {
+                // GANA Prestigio: si el voto nuevo es 3 Y NINGÚN otro jugador externo tenía un 3 antes.
+                if (vote === 3 && !hadOtherExternalThrees) {
                     await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
-                } else if (wasFirstExternalThree && vote !== 3) {
+                } 
+                // PIERDE Prestigio: si el voto antiguo era 3, el nuevo no lo es, Y NINGÚN otro jugador externo tenía un 3.
+                // Esto significa que el votante actual era el único que mantenía el prestigio.
+                else if (oldVote === 3 && vote !== 3 && !hadOtherExternalThrees) {
                     await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -1 } });
                 }
             }
@@ -200,31 +201,33 @@ async function main() {
         });
         
         // --- RUTAS DE ADMINISTRADOR ---
-        apiRouter.post('/admin/reset-password', isAdmin, async (req, res) => {
+        apiRouter.use(isAdmin);
+
+        apiRouter.post('/admin/reset-password', async (req, res) => {
             const { username, newPassword } = req.body;
             if (!username || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'Datos incompletos.' });
             await usersCollection.updateOne({ username }, { $set: { password: await bcrypt.hash(newPassword, 10) } });
             res.status(200).json({ message: `Contraseña de ${username} actualizada.` });
         });
 
-        apiRouter.delete('/admin/games/:id', isAdmin, async (req, res) => {
+        apiRouter.delete('/admin/games/:id', async (req, res) => {
             await gamesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
             res.status(200).json({ message: 'Juego eliminado permanentemente.' });
         });
 
-        apiRouter.post('/admin/update-stats', isAdmin, async (req, res) => {
+        apiRouter.post('/admin/update-stats', async (req, res) => {
             const { username, tokens, vetoes, prestige } = req.body;
             await usersCollection.updateOne({ username }, { $set: { tokens: parseInt(tokens), vetoes: parseInt(vetoes), prestige: parseInt(prestige) }});
             res.status(200).json({ message: `Estadísticas de ${username} actualizadas.` });
         });
 
-        apiRouter.post('/admin/reset-all', isAdmin, async (req, res) => {
+        apiRouter.post('/admin/reset-all', async (req, res) => {
             await gamesCollection.deleteMany({});
             await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: { tokens: 3, vetoes: 1, prestige: 0, nominationCooldownUntil: null, }});
             res.status(200).json({ message: 'Aplicación reseteada a valores por defecto.' });
         });
         
-        apiRouter.post('/admin/games/:id/unveto', isAdmin, async (req, res) => {
+        apiRouter.post('/admin/games/:id/unveto', async (req, res) => {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.status !== 'vetoed') return res.status(400).json({ message: 'Este juego no está vetado.' });
             
