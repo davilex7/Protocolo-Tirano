@@ -77,11 +77,6 @@ async function main() {
         // --- Router de la API ---
         const apiRouter = express.Router();
         
-        // **NUEVA RUTA DE HEALTH CHECK**
-        apiRouter.get('/health', (req, res) => {
-            res.status(200).json({ status: 'ok' });
-        });
-
         apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
@@ -145,7 +140,7 @@ async function main() {
             let prestigeChange = 0;
 
             if (oldVote !== undefined) {
-                prestigeChange -= 1;
+                prestigeChange -= 1; // Penalización por modificar voto
                 if (oldVote === 3) tokenChange += 1;
                 if (oldVote === 0) tokenChange -= 1;
                 if (oldVote === 1) prestigeChange -= 0.5;
@@ -157,18 +152,33 @@ async function main() {
 
             if (voter.tokens + tokenChange < 0) return res.status(400).json({ message: `No tienes suficientes Tokens.` });
             
+            // --- INICIO DE LA LÓGICA DE PRESTIGIO CORREGIDA ---
             if (game.nominatedBy && game.nominatedBy !== voterUsername) {
-                const otherVotes = { ...game.votes };
-                delete otherVotes[voterUsername];
-                const otherThrees = Object.values(otherVotes).filter(v => v === 3).length > 0;
-                const wasOnlyThree = oldVote === 3 && !otherThrees;
-                const isNowFirstThree = vote === 3 && !otherThrees;
-                if (isNowFirstThree && oldVote !== 3) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
-                else if (wasOnlyThree && vote !== 3) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -1 } });
+                // Crear una copia de los votos existentes, excluyendo al votante actual para ver el estado "anterior" de los demás.
+                const otherPlayerVotes = { ...game.votes };
+                delete otherPlayerVotes[voterUsername]; 
+                
+                // Comprobar si algún OTRO jugador ya había votado '3'
+                const hadOtherThrees = Object.values(otherPlayerVotes).some(v => v === 3);
+
+                // Condición para GANAR prestigio: El nuevo voto es '3' Y ningún otro jugador había votado '3' antes.
+                const isNowFirstExternalThree = vote === 3 && !hadOtherThrees;
+                // Condición para PERDER prestigio: El voto anterior era '3', ningún otro jugador había votado '3', y el nuevo voto ya no es '3'.
+                const wasFirstExternalThree = oldVote === 3 && !hadOtherThrees;
+
+                if (isNowFirstExternalThree && oldVote !== 3) {
+                    await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
+                } else if (wasFirstExternalThree && vote !== 3) {
+                    await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -1 } });
+                }
             }
+            // --- FIN DE LA LÓGICA DE PRESTIGIO CORREGIDA ---
             
+            // Actualizar DB
             const updateOps = { $set: { [`votes.${voterUsername}`]: vote } };
-            if (game.status === 'pending_vote') updateOps.$set.status = 'active';
+            if (game.status === 'pending_vote') {
+                updateOps.$set.status = 'active';
+            }
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, updateOps);
             await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange, prestige: prestigeChange } });
             
