@@ -194,7 +194,7 @@ async function main() {
             if (!game || game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
             await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1 } });
-            if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -5 } });
+            if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -3 } });
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'vetoed', vetoedBy: req.user.username } });
             
             res.status(200).json({ message: 'Juego vetado con éxito.' });
@@ -232,7 +232,7 @@ async function main() {
             if (!game || game.status !== 'vetoed') return res.status(400).json({ message: 'Este juego no está vetado.' });
             
             await usersCollection.updateOne({ username: game.vetoedBy }, { $inc: { vetoes: 1 } });
-            if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 5 } });
+            if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 3 } });
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'active' }, $unset: { vetoedBy: "" } });
             
             res.status(200).json({ message: `Veto levantado. ${game.vetoedBy} ha recuperado su Veto.` });
