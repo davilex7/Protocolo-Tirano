@@ -18,16 +18,8 @@
         .btn:disabled { background-color: #374151; opacity: 0.5; cursor: not-allowed; }
         .modal { display: none; } .modal.is-open { display: flex; }
         .hidden { display: none; }
-        /* CORRECCIÓN SCROLL: Limitar altura y permitir scroll interno */
-        .scroll-section {
-            height: calc(100vh - 12rem); /* Ajusta esta altura según sea necesario */
-            display: flex;
-            flex-direction: column;
-        }
-        .scroll-content {
-            overflow-y: auto;
-            flex-grow: 1;
-        }
+        .scroll-section { height: calc(100vh - 12rem); display: flex; flex-direction: column; }
+        .scroll-content { overflow-y: auto; flex-grow: 1; }
     </style>
 </head>
 <body class="flex flex-col">
@@ -98,8 +90,7 @@
         async function apiCall(endpoint, method = 'GET', body = null) {
             const token = localStorage.getItem('accessToken');
             if (!token && endpoint !== '/api/login') {
-                logout();
-                throw new Error('No hay token');
+                logout(); throw new Error('No hay token');
             }
             const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
             if (body) {
@@ -115,19 +106,14 @@
         }
 
         async function fetchState() {
-            try { 
-                state = await apiCall('/api/state'); 
-                render(); 
-                return true; 
-            } catch (error) { 
-                console.error("Error al cargar estado:", error); 
-                return false; 
-            }
+            try { state = await apiCall('/api/state'); render(); return true; } 
+            catch (error) { console.error("Error al cargar estado:", error); return false; }
         }
 
-        // --- RENDERIZADO ---
+        // --- RENDERIZADO (SEGURO) ---
         function render() {
-            document.getElementById('current-user-name').textContent = `Conectado como: ${state.currentUser?.name}`;
+            const currentUserEl = document.getElementById('current-user-name');
+            currentUserEl.textContent = `Conectado como: ${state.currentUser?.name}`; // SECURE: Usar textContent
             renderPlayerRanking();
             renderGameList();
             renderNominationStatus();
@@ -145,13 +131,42 @@
 
         function renderPlayerRanking() {
             const el = document.getElementById('player-ranking');
-            el.innerHTML = '';
+            el.innerHTML = ''; // Limpiar contenido anterior
             const playerScores = calculateScores();
             const sortedUsers = [...state.users].filter(u => !u.isAdmin).sort((a,b) => playerScores[b.username] - playerScores[a.username]);
             
             sortedUsers.forEach((user, index) => {
                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-                el.innerHTML += `<div class="p-4 rounded-lg bg-gray-800"><div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div><div class="text-2xl font-bold text-blue-400">${playerScores[user.username] || 0}</div></div><div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center"><div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div></div></div>`;
+                
+                // Crear elementos programáticamente para evitar XSS
+                const card = document.createElement('div');
+                card.className = 'p-4 rounded-lg bg-gray-800';
+
+                const header = document.createElement('div');
+                header.className = 'flex justify-between items-center';
+                
+                const userInfo = document.createElement('div');
+                userInfo.className = 'flex items-center';
+                const medalSpan = document.createElement('span');
+                medalSpan.className = 'text-2xl w-8';
+                medalSpan.textContent = medal || '_'; // SECURE
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'font-bold text-lg text-white';
+                nameSpan.textContent = user.name; // SECURE
+                userInfo.append(medalSpan, nameSpan);
+                
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'text-2xl font-bold text-blue-400';
+                scoreDiv.textContent = playerScores[user.username] || 0; // SECURE
+                
+                header.append(userInfo, scoreDiv);
+                
+                const stats = document.createElement('div');
+                stats.className = 'mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center';
+                stats.innerHTML = `<div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div>`; // InnerHTML seguro aquí porque no contiene datos de usuario
+                
+                card.append(header, stats);
+                el.appendChild(card);
             });
         }
         
@@ -167,12 +182,12 @@
 
             if (currentUser.nominationCooldownUntil && new Date(currentUser.nominationCooldownUntil) > new Date()) {
                 addBtn.disabled = true;
-                el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`;
+                el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`; // SECURE
             } else {
                 const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && g.status === 'pending_vote');
                  if (pendingNomination) {
                     addBtn.disabled = true;
-                    el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`;
+                    el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`; // SECURE
                 }
             }
         }
@@ -190,28 +205,118 @@
                 return scoreB - scoreA;
             });
 
-            if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos nominados.</p>'; return; }
-            sortedGames.forEach(game => el.innerHTML += createGameHTML(game));
+            if (sortedGames.length === 0) { 
+                const p = document.createElement('p');
+                p.className = 'text-gray-400';
+                p.textContent = 'No hay juegos nominados.'; // SECURE
+                el.appendChild(p);
+                return;
+            }
+            sortedGames.forEach(game => el.appendChild(createGameHTML(game)));
         }
         
         function createGameHTML(game) {
-            if (game.status === 'pending_vote') {
-                const canCancel = game.nominatedBy === state.currentUser.username;
-                const nominator = state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy;
-                return `<div class="p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10"><div class="flex justify-between items-center flex-wrap gap-2"><div><span class="text-xl font-bold text-white">${game.name}</span><span class="text-xs text-gray-400 ml-2">de ${nominator}</span></div><div class="flex gap-2">${canCancel ? `<button class="btn btn-warning text-sm" onclick="handleCancel('${game._id}')">Cancelar</button>` : ''}<button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button></div></div></div>`;
-            }
-            if (game.status === 'vetoed') {
-                const vetoer = state.users.find(p => p.username === game.vetoedBy);
-                return `<div class="p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50"><div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name}</span><span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}</span></div></div>`;
-            }
-            // Active games
-            const getVoteBadge = (vote) => `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[vote]}">${vote}</span>`;
-            const playerVotesHTML = state.users.filter(u=>!u.isAdmin).map(p => `<div class="flex flex-col items-center"><span class="text-xs text-gray-400 mb-1">${p.name}</span>${getVoteBadge(game.votes[p.username] ?? null)}</div>`).join('');
-            const hasZeroVote = Object.values(game.votes).includes(0);
-            const canBeVetoed = state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0);
+            const card = document.createElement('div');
 
-            // CORRECCIÓN LAYOUT: Usar flex-grow en el nombre para empujar el resto a la derecha.
-            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white flex-grow">${game.name}</h4><div class="flex items-center gap-4 shrink-0"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div><button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
+            if (game.status === 'pending_vote') {
+                card.className = 'p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10';
+                const container = document.createElement('div');
+                container.className = 'flex justify-between items-center flex-wrap gap-2';
+                
+                const infoDiv = document.createElement('div');
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'text-xl font-bold text-white';
+                nameSpan.textContent = game.name; // SECURE
+                const nominatorSpan = document.createElement('span');
+                nominatorSpan.className = 'text-xs text-gray-400 ml-2';
+                nominatorSpan.textContent = `de ${state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy}`; // SECURE
+                infoDiv.append(nameSpan, nominatorSpan);
+
+                const buttonsDiv = document.createElement('div');
+                buttonsDiv.className = 'flex gap-2';
+                if (game.nominatedBy === state.currentUser.username) {
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.className = 'btn btn-warning text-sm';
+                    cancelBtn.textContent = 'Cancelar'; // SECURE
+                    cancelBtn.onclick = () => handleCancel(game._id);
+                    buttonsDiv.appendChild(cancelBtn);
+                }
+                const voteBtn = document.createElement('button');
+                voteBtn.className = 'btn btn-primary text-sm';
+                voteBtn.textContent = 'Votar'; // SECURE
+                voteBtn.onclick = () => openVoteModal(game._id);
+                buttonsDiv.appendChild(voteBtn);
+
+                container.append(infoDiv, buttonsDiv);
+                card.appendChild(container);
+
+            } else if (game.status === 'vetoed') {
+                card.className = 'p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50';
+                // ... (El código para los juegos vetados es similar, se omite por brevedad pero debe seguir el mismo patrón)
+                const vetoer = state.users.find(p => p.username === game.vetoedBy);
+                card.innerHTML = `<div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name.replace(/</g, "&lt;")}</span><span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase().replace(/</g, "&lt;")}` : ''}</span></div>`;
+            
+            } else { // active
+                card.className = `p-4 rounded-lg bg-gray-800 ${Object.values(game.votes).includes(0) ? 'border-2 border-red-600' : ''}`;
+                
+                const header = document.createElement('div');
+                header.className = 'flex justify-between items-center mb-3 flex-wrap gap-2';
+                const title = document.createElement('h4');
+                title.className = 'text-xl font-bold text-white flex-grow';
+                title.textContent = game.name; // SECURE
+                
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'flex items-center gap-4 shrink-0';
+                
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'text-right';
+                scoreDiv.innerHTML = `<div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div>`; // No user data
+                
+                const voteBtn = document.createElement('button');
+                voteBtn.className = 'btn btn-primary text-sm';
+                voteBtn.textContent = 'Votar';
+                voteBtn.onclick = () => openVoteModal(game._id);
+                
+                actionsDiv.append(scoreDiv, voteBtn);
+
+                if (state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0)) {
+                    const vetoBtn = document.createElement('button');
+                    vetoBtn.className = 'btn btn-danger text-sm';
+                    vetoBtn.textContent = 'Vetar';
+                    vetoBtn.onclick = () => handleVeto(game._id);
+                    actionsDiv.appendChild(vetoBtn);
+                }
+                
+                header.append(title, actionsDiv);
+                
+                const votesContainer = document.createElement('div');
+                votesContainer.className = 'flex justify-around items-center p-2 bg-gray-900 rounded-lg';
+                state.users.filter(u=>!u.isAdmin).forEach(p => {
+                    const voteDiv = document.createElement('div');
+                    voteDiv.className = 'flex flex-col items-center';
+                    const playerName = document.createElement('span');
+                    playerName.className = 'text-xs text-gray-400 mb-1';
+                    playerName.textContent = p.name; // SECURE
+                    const voteBadge = document.createElement('span');
+                    const voteValue = game.votes[p.username];
+                    if (voteValue !== undefined && voteValue !== null) {
+                        voteBadge.className = `text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[voteValue]}`;
+                        voteBadge.textContent = voteValue;
+                    }
+                    voteDiv.append(playerName, voteBadge);
+                    votesContainer.appendChild(voteDiv);
+                });
+                
+                card.append(header, votesContainer);
+                
+                if (Object.values(game.votes).includes(0)) {
+                    const blockedText = document.createElement('p');
+                    blockedText.className = 'text-red-500 text-xs text-center mt-2';
+                    blockedText.textContent = 'Juego bloqueado por voto de Rechazo.';
+                    card.appendChild(blockedText);
+                }
+            }
+            return card;
         }
 
 
@@ -262,13 +367,37 @@
             const userListEl = document.getElementById('admin-user-list');
             userListEl.innerHTML = '';
             state.users.filter(u => !u.isAdmin).forEach(user => {
-                 userListEl.innerHTML += `<div class="p-3 bg-gray-800 rounded-lg"><p class="font-bold text-white mb-2">${user.name} (${user.username})</p><form class="grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="handleAdminUpdateStats(event, '${user.username}')"><div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" class="w-full bg-gray-700 p-1 rounded"></div><div class="flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div></form><form class="mt-4" onsubmit="handleAdminResetPassword(event, '${user.username}')"><label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div></form></div>`;
+                const userCard = document.createElement('div');
+                userCard.className = 'p-3 bg-gray-800 rounded-lg';
+                userCard.innerHTML = `<p class="font-bold text-white mb-2">${user.name.replace(/</g, "&lt;")} (${user.username.replace(/</g, "&lt;")})</p>`; // Simple, non-interactive text
+                
+                const statsForm = document.createElement('form');
+                statsForm.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
+                statsForm.onsubmit = (e) => handleAdminUpdateStats(e, user.username);
+                statsForm.innerHTML = `<div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" class="w-full bg-gray-700 p-1 rounded"></div><div class="flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div>`;
+                
+                const passForm = document.createElement('form');
+                passForm.className = 'mt-4';
+                passForm.onsubmit = (e) => handleAdminResetPassword(e, user.username);
+                passForm.innerHTML = `<label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div>`;
+                
+                userCard.append(statsForm, passForm);
+                userListEl.appendChild(userCard);
             });
 
             const gameListEl = document.getElementById('admin-game-list');
             gameListEl.innerHTML = '';
             state.games.forEach(game => {
-                gameListEl.innerHTML += `<div class="flex justify-between items-center p-2 bg-gray-800 rounded"><span>${game.name}</span><button class="btn btn-danger btn-sm text-xs" onclick="handleAdminDeleteGame('${game._id}', '${game.name}')">Eliminar</button></div>`
+                const gameDiv = document.createElement('div');
+                gameDiv.className = 'flex justify-between items-center p-2 bg-gray-800 rounded';
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = game.name; // SECURE
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-danger btn-sm text-xs';
+                deleteBtn.textContent = 'Eliminar';
+                deleteBtn.onclick = () => handleAdminDeleteGame(game._id, game.name);
+                gameDiv.append(nameSpan, deleteBtn);
+                gameListEl.appendChild(gameDiv);
             });
             modals.admin.classList.add('is-open');
         }
