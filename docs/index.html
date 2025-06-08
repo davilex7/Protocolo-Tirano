@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protocolo Tirano</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <link href="[https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap](https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap)" rel="stylesheet">
     <style>
         html, body { height: 100%; margin: 0; }
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
@@ -83,15 +83,14 @@
     <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-4xl max-h-screen overflow-y-auto"><h3 class="text-2xl font-bold text-white mb-6">Panel de Administración</h3><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Jugadores</h4><div id="admin-user-list" class="space-y-4"></div></div><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Juegos</h4><div id="admin-game-list" class="space-y-2"></div></div><div><h4 class="text-lg font-semibold text-white mb-4">Acciones Globales</h4><button id="admin-reset-app-btn" class="btn btn-danger">Resetear Aplicación</button></div><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
     
     <script>
-        const API_URL = 'https://protocolo-tirano.onrender.com';
+        const API_URL = '[https://protocolo-tirano.onrender.com](https://protocolo-tirano.onrender.com)';
         let state = {};
         let modals = {};
 
         async function apiCall(endpoint, method = 'GET', body = null) {
             const token = localStorage.getItem('accessToken');
             if (!token && endpoint !== '/api/login') {
-                logout();
-                throw new Error('No hay token');
+                logout(); throw new Error('No hay token');
             }
             const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
             if (body) {
@@ -127,10 +126,13 @@
 
         function renderAdminButton() {
             const adminBtn = document.getElementById('admin-panel-btn');
+            const addGameBtn = document.getElementById('add-game-btn');
             if (state.currentUser && state.currentUser.isAdmin) {
                 adminBtn.classList.remove('hidden');
+                addGameBtn.classList.add('hidden');
             } else {
                 adminBtn.classList.add('hidden');
+                addGameBtn.classList.remove('hidden');
             }
         }
 
@@ -196,18 +198,20 @@
                 card.querySelector('.text-xl').textContent = game.name;
                 card.querySelector('.text-xs').textContent = `de ${state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy}`;
                 const buttonsDiv = card.querySelector('.flex.gap-2');
-                if (game.nominatedBy === state.currentUser.username) {
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.className = 'btn btn-warning text-sm';
-                    cancelBtn.textContent = 'Cancelar';
-                    cancelBtn.onclick = () => handleCancel(game._id);
-                    buttonsDiv.appendChild(cancelBtn);
+                if (!state.currentUser.isAdmin) {
+                    if (game.nominatedBy === state.currentUser.username) {
+                        const cancelBtn = document.createElement('button');
+                        cancelBtn.className = 'btn btn-warning text-sm';
+                        cancelBtn.textContent = 'Cancelar';
+                        cancelBtn.onclick = () => handleCancel(game._id);
+                        buttonsDiv.appendChild(cancelBtn);
+                    }
+                    const voteBtn = document.createElement('button');
+                    voteBtn.className = 'btn btn-primary text-sm';
+                    voteBtn.textContent = 'Votar';
+                    voteBtn.onclick = () => openVoteModal(game._id);
+                    buttonsDiv.appendChild(voteBtn);
                 }
-                const voteBtn = document.createElement('button');
-                voteBtn.className = 'btn btn-primary text-sm';
-                voteBtn.textContent = 'Votar';
-                voteBtn.onclick = () => openVoteModal(game._id);
-                buttonsDiv.appendChild(voteBtn);
             } else if (game.status === 'vetoed') {
                 card.className = 'p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50';
                 const vetoer = state.users.find(p => p.username === game.vetoedBy);
@@ -221,18 +225,20 @@
                 card.querySelector('.text-3xl').textContent = game.totalScore || 0;
                 
                 const actionsDiv = card.querySelector('.flex.items-center.gap-4');
-                const voteBtn = document.createElement('button');
-                voteBtn.className = 'btn btn-primary text-sm';
-                voteBtn.textContent = 'Votar';
-                voteBtn.onclick = () => openVoteModal(game._id);
-                actionsDiv.appendChild(voteBtn);
+                if (!state.currentUser.isAdmin) {
+                    const voteBtn = document.createElement('button');
+                    voteBtn.className = 'btn btn-primary text-sm';
+                    voteBtn.textContent = 'Votar';
+                    voteBtn.onclick = () => openVoteModal(game._id);
+                    actionsDiv.appendChild(voteBtn);
 
-                if (state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0)) {
-                    const vetoBtn = document.createElement('button');
-                    vetoBtn.className = 'btn btn-danger text-sm';
-                    vetoBtn.textContent = 'Vetar';
-                    vetoBtn.onclick = () => handleVeto(game._id);
-                    actionsDiv.appendChild(vetoBtn);
+                    if (state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0)) {
+                        const vetoBtn = document.createElement('button');
+                        vetoBtn.className = 'btn btn-danger text-sm';
+                        vetoBtn.textContent = 'Vetar';
+                        vetoBtn.onclick = () => handleVeto(game._id);
+                        actionsDiv.appendChild(vetoBtn);
+                    }
                 }
 
                 const votesContainer = card.querySelector('.flex.justify-around');

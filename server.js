@@ -106,6 +106,7 @@ async function main() {
         });
         
         apiRouter.post('/games', async (req, res) => {
+            if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede nominar juegos.' });
             const user = await usersCollection.findOne({ username: req.user.username });
             if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `Cooldown activo hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
             if (await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' })) return res.status(403).json({ message: 'Ya tienes una nominación pendiente.' });
@@ -124,6 +125,7 @@ async function main() {
         });
 
         apiRouter.post('/games/:id/vote', async (req, res) => {
+            if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede votar.' });
             const { vote } = req.body;
             const voterUsername = req.user.username;
             const gameId = req.params.id;
@@ -154,20 +156,29 @@ async function main() {
                 return res.status(400).json({ message: `No tienes suficientes Tokens de Prioridad.` });
             }
             
+            // Lógica de prestigio simétrica
+            if (game.nominatedBy && game.nominatedBy !== voterUsername) {
+                const otherVotes = { ...game.votes };
+                delete otherVotes[voterUsername];
+                const otherThrees = Object.values(otherVotes).filter(v => v === 3).length > 0;
+
+                const wasOnlyThree = oldVote === 3 && !otherThrees;
+                const isNowFirstThree = vote === 3 && !otherThrees;
+
+                if (isNowFirstThree && oldVote !== 3) {
+                    await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
+                } else if (wasOnlyThree && vote !== 3) {
+                    await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -1 } });
+                }
+            }
+            
+            // Actualizar DB
             const updateOps = { $set: { [`votes.${voterUsername}`]: vote } };
             if (game.status === 'pending_vote') {
                 updateOps.$set.status = 'active';
             }
-
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, updateOps);
             await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange, prestige: prestigeChange } });
-            
-            if (vote === 3 && oldVote !== 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
-                const existingThrees = Object.values(game.votes).filter(v => v === 3).length;
-                if (existingThrees === 0) {
-                     await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
-                }
-            }
             
             res.status(200).json({ message: 'Voto registrado.' });
         });
@@ -213,23 +224,17 @@ async function main() {
             res.status(200).json({ message: 'Aplicación reseteada a valores por defecto.' });
         });
         
-        // **NUEVA RUTA DE ADMIN**
         apiRouter.post('/admin/games/:id/unveto', async (req, res) => {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
-            if (!game || game.status !== 'vetoed') {
-                return res.status(400).json({ message: 'Este juego no está vetado.' });
-            }
+            if (!game || game.status !== 'vetoed') return res.status(400).json({ message: 'Este juego no está vetado.' });
 
             const vetoerUsername = game.vetoedBy;
             const nominatorUsername = game.nominatedBy;
 
-            // Devolver veto al jugador
             await usersCollection.updateOne({ username: vetoerUsername }, { $inc: { vetoes: 1 } });
-            // Devolver prestigio al nominador
             if (nominatorUsername) {
                 await usersCollection.updateOne({ username: nominatorUsername }, { $inc: { prestige: 5 } });
             }
-            // Reactivar el juego
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'active' }, $unset: { vetoedBy: "" } });
             
             res.status(200).json({ message: `Veto levantado. ${vetoerUsername} ha recuperado su Veto.` });
