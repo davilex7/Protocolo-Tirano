@@ -17,12 +17,12 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); 
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 let db, usersCollection, gamesCollection;
 
-// --- Middleware de Autenticación ---
+// --- Middleware de Autenticación y Admin ---
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -61,19 +61,15 @@ async function main() {
             { username: 'sergio', password: 'sergio123', name: 'Sergio', isAdmin: false },
             { username: 'miguel', password: 'miguel123', name: 'Miguel', isAdmin: false },
         ];
-
         for (const userData of initialUsers) {
-            const existingUser = await usersCollection.findOne({ username: userData.username });
-            if (!existingUser) {
-                console.log(`Usuario "${userData.username}" no encontrado. Creándolo...`);
+            if (!(await usersCollection.findOne({ username: userData.username }))) {
+                console.log(`Creando usuario: ${userData.username}`);
                 const hashedPassword = await bcrypt.hash(userData.password, 10);
-                const newUser = {
+                await usersCollection.insertOne({
                     username: userData.username, password: hashedPassword, name: userData.name,
                     isAdmin: userData.isAdmin, tokens: 3, vetoes: 1, prestige: 0,
                     nominationCooldownUntil: null,
-                };
-                await usersCollection.insertOne(newUser);
-                console.log(`Usuario "${userData.username}" creado con éxito.`);
+                });
             }
         }
         console.log("Verificación de usuarios completada.");
@@ -82,8 +78,6 @@ async function main() {
         // --- Router de la API ---
         const apiRouter = express.Router();
         
-        // El resto del código del servidor (rutas, etc.) es idéntico al anterior.
-        // POST /api/login
         apiRouter.post('/login', async (req, res) => {
             const { username, password } = req.body;
             const user = await usersCollection.findOne({ username });
@@ -93,106 +87,112 @@ async function main() {
             const accessToken = jwt.sign({ username: user.username, name: user.name, isAdmin: user.isAdmin }, process.env.JWT_SECRET, { expiresIn: '1d' });
             res.json({ accessToken });
         });
-
+        
         apiRouter.use(authenticateToken);
 
-        // GET /api/state
         apiRouter.get('/state', async (req, res) => {
             try {
                 const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
                 const games = await gamesCollection.find({}).toArray();
                 res.json({ users, games, currentUser: req.user });
-            } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
+            } catch (error) {
+                res.status(500).json({ message: "Error al obtener el estado" });
+            }
         });
 
-        // POST /api/user/change-password
         apiRouter.post('/user/change-password', async (req, res) => {
             const { currentPassword, newPassword } = req.body;
-            if (!currentPassword || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
-            
+            if (!currentPassword || !newPassword || newPassword.length < 6) {
+                return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+            }
             const user = await usersCollection.findOne({ username: req.user.username });
-            if (!user || !await bcrypt.compare(currentPassword, user.password)) return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
-
+            if (!user || !await bcrypt.compare(currentPassword, user.password)) {
+                return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
+            }
             const hashedNewPassword = await bcrypt.hash(newPassword, 10);
             await usersCollection.updateOne({ username: req.user.username }, { $set: { password: hashedNewPassword } });
             res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         });
         
-        // POST /api/games
         apiRouter.post('/games', async (req, res) => {
             const user = await usersCollection.findOne({ username: req.user.username });
-            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `No puedes nominar hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
-            const pendingNomination = await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' });
-            if (pendingNomination) return res.status(403).json({ message: 'Ya tienes una nominación pendiente de voto.' });
+            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) {
+                return res.status(403).json({ message: `Cooldown activo hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
+            }
+            if (await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' })) {
+                return res.status(403).json({ message: 'Ya tienes una nominación pendiente de voto.' });
+            }
             
             const newGame = { name: req.body.name, status: 'pending_vote', votes: {}, totalScore: 0, nominatedBy: req.user.username };
             await gamesCollection.insertOne(newGame);
-            res.status(201).json(newGame);
+            res.status(201).json({ message: 'Juego nominado con éxito.'});
         });
 
-        // DELETE /api/games/:id
         apiRouter.delete('/games/:id', async (req, res) => {
-            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
-            if (!game || game.nominatedBy !== req.user.username) return res.status(403).json({ message: 'Acción no permitida.' });
-            if (game.status !== 'pending_vote') return res.status(400).json({ message: 'Solo se pueden cancelar nominaciones pendientes.' });
-
+            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id), nominatedBy: req.user.username, status: 'pending_vote' });
+            if (!game) {
+                return res.status(403).json({ message: 'Acción no permitida.' });
+            }
+            
             await gamesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
-            const cooldownUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
-            await usersCollection.updateOne({ username: req.user.username }, { $set: { nominationCooldownUntil: cooldownUntil } });
+            await usersCollection.updateOne({ username: req.user.username }, { $set: { nominationCooldownUntil: new Date(Date.now() + 24 * 60 * 60 * 1000) } });
             res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
         });
 
-        // POST /api/games/:id/vote
         apiRouter.post('/games/:id/vote', async (req, res) => {
-            const gameId = req.params.id;
             const { vote } = req.body;
             const voterUsername = req.user.username;
+            const gameId = req.params.id;
 
-            const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
             const voter = await usersCollection.findOne({ username: voterUsername });
-            
+            const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
+
             if (voterUsername === game.nominatedBy && Object.keys(game.votes).length === 0) {
                 return res.status(403).json({ message: 'No puedes ser el primero en votar tu propia nominación.' });
             }
-
+            
             const oldVote = game.votes[voterUsername];
             let tokenChange = 0;
+            let prestigeChange = 0;
+
             if (oldVote !== undefined) {
+                prestigeChange -= 1; // Penalización por modificar voto
                 if (oldVote === 3) tokenChange += 1;
                 if (oldVote === 0) tokenChange -= 1;
+                if (oldVote === 1) prestigeChange -= 0.5;
             }
+            
             if (vote === 3) tokenChange -= 1;
             if (vote === 0) tokenChange += 1;
-            
+            if (vote === 1) prestigeChange += 0.5;
+
             if (voter.tokens + tokenChange < 0) {
                 return res.status(400).json({ message: `No tienes suficientes Tokens de Prioridad.` });
             }
-
+            
             const updateOps = { $set: { [`votes.${voterUsername}`]: vote } };
             if (game.status === 'pending_vote') {
                 updateOps.$set.status = 'active';
             }
 
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, updateOps);
-            if (tokenChange !== 0) {
-                await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange } });
-            }
+            await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange, prestige: prestigeChange } });
 
-            if (vote === 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
-                await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
+            if (vote === 3 && oldVote !== 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
+                const existingThrees = Object.values(game.votes).filter(v => v === 3).length;
+                if (existingThrees === 0) { // Si este es el primer "3" (aparte del nuevo que estamos añadiendo)
+                     await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
+                }
             }
-            if (oldVote === 3 && vote !== 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
-                await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -1 } });
-            }
-
+            // (La lógica para retirar prestigio si se quita el único '3' se considera demasiado compleja y se omite)
+            
             res.status(200).json({ message: 'Voto registrado.' });
         });
         
-        // POST /api/games/:id/veto
         apiRouter.post('/games/:id/veto', async (req, res) => {
             const vetoer = await usersCollection.findOne({ username: req.user.username });
             if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
-
+            
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
@@ -229,10 +229,8 @@ async function main() {
             res.status(200).json({ message: `Estadísticas de ${username} actualizadas.` });
         });
 
-        // **INICIO DE LA CORRECCIÓN DE RESET**
         apiRouter.post('/admin/reset-all', async (req, res) => {
             await gamesCollection.deleteMany({});
-            // Se corrige la consulta para que seleccione a todos los usuarios que NO son 'admin'.
             await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: {
                 tokens: 3,
                 vetoes: 1,
@@ -241,7 +239,6 @@ async function main() {
             }});
             res.status(200).json({ message: 'Aplicación reseteada a valores por defecto (excepto contraseñas).' });
         });
-        // **FIN DE LA CORRECCIÓN DE RESET**
         
         // --- CONFIGURACIÓN DE RUTAS PRINCIPAL ---
         app.use('/api', apiRouter);

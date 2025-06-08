@@ -1,56 +1,54 @@
-# Guía de Campo: Protocolo Tirano (Versión Final)
+# Guía de Campo: Protocolo Tirano (Edición Final)
 
-## 1. ¿Qué es esta Guerra? (El Propósito)
+## 1. El Propósito de esta Guerra
 
 Esta aplicación es el árbitro digital de nuestra competición. Su misión es:
 
-1.  **Medir la Versatilidad:** Determinar matemáticamente quién es el jugador más versátil a través de un sistema de puntuación que refleja la disposición real a jugar.
-2.  **Eliminar el Debate:** Generar una lista de juegos ordenada por el deseo colectivo del grupo. Cuando nos juntemos, esta **Lista Jerarquizada** dictará a qué se juega.
+1.  **Medir la Versatilidad:** Determinar matemáticamente quién es el jugador más versátil a través de un sistema de puntuación.
+2.  **Eliminar el Debate:** Generar una lista de juegos ordenada por el deseo colectivo. Cuando nos juntemos, esta **Lista Jerarquizada** dictará a qué se juega.
 
-El sistema está diseñado para que cada acción estratégica tenga un coste o una consecuencia. No hay lugar para la explotación.
+El sistema está diseñado para que cada acción estratégica tenga un coste. No hay lugar para la explotación.
 
 ## 2. El Arsenal: Reglas de Combate
 
 Cada jugador gestiona una serie de recursos que definen su influencia en la partida.
 
 ### Tokens de Prioridad: La Moneda de la Influencia
-* **Votar "3" (Prioridad Alta):** Cuesta **1 Token de Prioridad**. Úsalo para los juegos que de verdad quieres jugar.
-* **Votar "0" (Rechazo Absoluto):** Genera **1 Token de Prioridad**. Es la única forma de ganar nuevos tokens.
-* **Votos "2" y "1":** No tienen coste ni recompensa. Son el pan de cada día.
+* **Votar "3" (Prioridad Alta):** Cuesta **1 Token de Prioridad**.
+* **Votar "0" (Rechazo Absoluto):** Genera **1 Token de Prioridad**.
+* **Votos "2" y "1":** Son gratuitos en términos de Tokens.
 * **Capital Inicial:** Cada jugador comienza con **3 Tokens**.
 
 ### El Prestigio: El Marcador de Honor y Vergüenza
-* Ganas **+1 de Prestigio** cada vez que otro jugador vota "3" a un juego que tú nominaste.
-* Sufres **-5 de Prestigio** si una de tus nominaciones es vetada.
+El Prestigio es una puntuación de carrera que mide tu reputación y buen hacer.
+* **Ganancia Positiva:**
+    * Ganas **+1 de Prestigio** por el **primer voto de "3"** que reciba un juego que tú nominaste.
+    * Ganas **+0.5 de Prestigio** cada vez que emites un voto **"1" (Tolerable)**, como recompensa por tu buena disposición.
+* **Pérdida Negativa:**
+    * Sufres **-5 de Prestigio** si una de tus nominaciones es vetada.
+    * Sufres **-1 de Prestigio** cada vez que **modificas un voto** ya emitido, como penalización por la indecisión.
 
-### Nominaciones: Responsabilidad y Control
-* **Cola de Nominación:** No puedes nominar un juego nuevo si ya tienes una propuesta tuya esperando a ser votada por al menos otra persona.
-* **Cancelación Táctica:** Puedes cancelar tu propia nominación pendiente. Al hacerlo, sufres un **cooldown de 24 horas** durante el cual no podrás volver a nominar.
-
-### Votos: Individuales y Modificables
-* Las votaciones son individuales. Cada jugador vota desde su sesión cuando quiera.
-* Un juego nominado pasa a la lista de "activos" en cuanto recibe el primer voto (de alguien que no sea el nominador).
-* Puedes **modificar tu voto** en cualquier momento haciendo clic de nuevo en el botón "Votar" del juego. El coste/beneficio de Tokens se ajustará automáticamente (ej. cambiar de un "3" a un "2" te devuelve 1 Token).
+### Nominaciones y Votos
+* **Cola de Nominación:** No puedes nominar un juego nuevo si ya tienes una propuesta tuya esperando a ser votada.
+* **Cancelación Táctica:** Puedes cancelar tu propia nominación pendiente, pero al hacerlo, sufres un **cooldown de 24 horas**.
+* **Votación Individual:** Cada jugador vota desde su sesión. Un juego nominado se activa en cuanto recibe el primer voto (de alguien que no sea el nominador).
+* **Modificación de Voto:** Puedes modificar tu voto en cualquier momento. La economía de Tokens se ajustará automáticamente, pero recuerda que cada modificación cuesta 1 Prestigio.
 
 ### Vetos: La Bala de Plata
 * **Asignación:** Cada jugador tiene **un (1) Veto**. No se regenera.
 * **Condición de Uso:** Para vetar un juego, es **obligatorio** haberle votado **"0"** previamente.
 
-## 3. Manual de Operaciones
+## 3. Doctrina del Meta-juego (Cláusula de Guerra Psicológica)
 
+Se reconoce explícitamente que la competición no se limita a la interfaz.
+* **Todas las tácticas de comunicación, negociación, alianzas, amenazas, faroles y guerra psicológica que ocurran fuera de la aplicación son consideradas parte legítima del meta-juego.**
+* La habilidad de un jugador para manipular a sus oponentes es tan válida como su habilidad para gestionar sus recursos dentro de la aplicación. No se admitirán quejas sobre "juego sucio" en este ámbito.
+
+## 4. Manual de Operaciones
 * **Iniciar Sesión:** Usa tus credenciales. **Cambia tu contraseña** desde "Perfil" la primera vez.
-* **Votar/Modificar Voto:** Haz clic en el botón "Votar" de cualquier juego. Si ya has votado, te permitirá modificar tu voto.
+* **Votar/Modificar Voto:** Haz clic en el botón "Votar" de cualquier juego.
 * **Vetar:** El botón de "Vetar" aparecerá junto a los juegos en los que has votado "0" (si te queda tu Veto).
-
-## 4. El Rol del Administrador
-
-Un usuario "Admin" tiene acceso a un panel especial desde el Dashboard con las siguientes capacidades:
-
-* **Gestionar Jugadores:**
-    * Cambiar la contraseña de cualquier usuario (sin saber la actual).
-    * Modificar manualmente los Tokens, Vetos y Prestigio de cualquier jugador.
-* **Gestionar Juegos:** Eliminar permanentemente cualquier juego de la lista.
-* **Resetear Aplicación:** Restaurar todos los juegos y estadísticas (Tokens, Vetos, Prestigio) a sus valores por defecto, sin afectar a las contraseñas de los usuarios.
+* **Admin:** Un usuario "Admin" tiene acceso a un panel especial para gestionar usuarios, juegos y resetear la aplicación.
 
 ---
 *Este documento es la única fuente de verdad sobre las reglas del Protocolo. Cualquier disputa se resolverá consultando esta guía.*
