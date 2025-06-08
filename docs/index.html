@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        html, body { height: 100%; margin: 0; }
         body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
         .glassmorphism { background: rgba(31, 41, 55, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; cursor: pointer; }
@@ -17,9 +18,19 @@
         .btn:disabled { background-color: #374151; opacity: 0.5; cursor: not-allowed; }
         .modal { display: none; } .modal.is-open { display: flex; }
         .hidden { display: none; }
+        /* CORRECCIÓN SCROLL: Limitar altura y permitir scroll interno */
+        .scroll-section {
+            height: calc(100vh - 12rem); /* Ajusta esta altura según sea necesario */
+            display: flex;
+            flex-direction: column;
+        }
+        .scroll-content {
+            overflow-y: auto;
+            flex-grow: 1;
+        }
     </style>
 </head>
-<body>
+<body class="flex flex-col">
 
     <!-- Pantalla de Login -->
     <div id="login-container" class="min-h-screen flex flex-col items-center justify-center p-4">
@@ -43,8 +54,8 @@
     </div>
 
     <!-- Contenedor Principal de la App (Oculto por defecto con la clase .hidden) -->
-    <div id="app-container" class="hidden p-4 md:p-8">
-        <div class="max-w-7xl mx-auto">
+    <div id="app-container" class="hidden flex-grow flex flex-col p-4 md:p-8">
+        <div class="max-w-7xl mx-auto w-full flex-grow flex flex-col">
             <header class="mb-8 flex justify-between items-center flex-wrap gap-4">
                 <h1 class="text-4xl font-bold text-white">Dashboard</h1>
                 <div class="flex items-center gap-4">
@@ -55,12 +66,18 @@
                 </div>
             </header>
 
-            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <section class="lg:col-span-1 p-6 rounded-lg glassmorphism"><h2 class="text-2xl font-bold text-white mb-4">Ranking de Jugadores</h2><div id="player-ranking" class="space-y-3"></div></section>
-                <section class="lg:col-span-2 p-6 rounded-lg glassmorphism">
-                    <div class="flex justify-between items-center mb-4"><h2 class="text-2xl font-bold text-white">Lista de Juegos</h2><button id="add-game-btn" class="btn btn-primary">Nominar Juego</button></div>
-                    <p id="nomination-status" class="text-yellow-400 text-sm mb-4 h-5"></p>
-                    <div id="game-list" class="space-y-4"></div>
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-grow">
+                <section class="lg:col-span-1 p-6 rounded-lg glassmorphism scroll-section">
+                    <h2 class="text-2xl font-bold text-white mb-4 shrink-0">Ranking de Jugadores</h2>
+                    <div id="player-ranking" class="space-y-3 scroll-content"></div>
+                </section>
+                <section class="lg:col-span-2 p-6 rounded-lg glassmorphism scroll-section">
+                    <div class="flex justify-between items-center mb-4 shrink-0">
+                        <h2 class="text-2xl font-bold text-white">Lista de Juegos</h2>
+                        <button id="add-game-btn" class="btn btn-primary">Nominar Juego</button>
+                    </div>
+                    <p id="nomination-status" class="text-yellow-400 text-sm mb-4 h-5 shrink-0"></p>
+                    <div id="game-list" class="space-y-4 scroll-content"></div>
                 </section>
             </main>
         </div>
@@ -193,7 +210,8 @@
             const hasZeroVote = Object.values(game.votes).includes(0);
             const canBeVetoed = state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0);
 
-            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white">${game.name}</h4><div class="flex items-center gap-4"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div><button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
+            // CORRECCIÓN LAYOUT: Usar flex-grow en el nombre para empujar el resto a la derecha.
+            return `<div class="p-4 rounded-lg bg-gray-800 ${hasZeroVote ? 'border-2 border-red-600' : ''}"><div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white flex-grow">${game.name}</h4><div class="flex items-center gap-4 shrink-0"><div class="text-right"><div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div></div><button class="btn btn-primary text-sm" onclick="openVoteModal('${game._id}')">Votar</button>${canBeVetoed ? `<button class="btn btn-danger text-sm" onclick="handleVeto('${game._id}')">Vetar</button>` : ''}</div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg">${playerVotesHTML}</div>${hasZeroVote ? '<p class="text-red-500 text-xs text-center mt-2">Juego bloqueado por voto de Rechazo.</p>' : ''}</div>`;
         }
 
 
