@@ -11,21 +11,13 @@ const port = process.env.PORT || 3000;
 const client = new MongoClient(process.env.MONGODB_URI);
 
 // --- Middlewares Globales ---
-
-// **INICIO DE LA CORRECCIÓN CORS DEFINITIVA**
-// 1. Configuración de CORS explícita
 const corsOptions = {
-  origin: '*', // O para mayor seguridad: 'https://davilex7.github.io'
+  origin: '*',
   methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
-
-// 2. Manejador explícito para las peticiones OPTIONS (Preflight)
-// Esto asegura que cualquier petición OPTIONS reciba la respuesta correcta inmediatamente.
 app.options('*', cors(corsOptions)); 
-// **FIN DE LA CORRECCIÓN CORS DEFINITIVA**
-
 app.use(express.json());
 
 let db, usersCollection, gamesCollection;
@@ -104,6 +96,7 @@ async function main() {
 
         apiRouter.use(authenticateToken);
 
+        // GET /api/state
         apiRouter.get('/state', async (req, res) => {
             try {
                 const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
@@ -112,6 +105,7 @@ async function main() {
             } catch (error) { res.status(500).json({ message: "Error al obtener el estado" }); }
         });
 
+        // POST /api/user/change-password
         apiRouter.post('/user/change-password', async (req, res) => {
             const { currentPassword, newPassword } = req.body;
             if (!currentPassword || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
@@ -124,6 +118,7 @@ async function main() {
             res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
         });
         
+        // POST /api/games
         apiRouter.post('/games', async (req, res) => {
             const user = await usersCollection.findOne({ username: req.user.username });
             if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `No puedes nominar hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
@@ -135,6 +130,7 @@ async function main() {
             res.status(201).json(newGame);
         });
 
+        // DELETE /api/games/:id
         apiRouter.delete('/games/:id', async (req, res) => {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.nominatedBy !== req.user.username) return res.status(403).json({ message: 'Acción no permitida.' });
@@ -146,6 +142,7 @@ async function main() {
             res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
         });
 
+        // POST /api/games/:id/vote
         apiRouter.post('/games/:id/vote', async (req, res) => {
             const gameId = req.params.id;
             const { vote } = req.body;
@@ -191,6 +188,7 @@ async function main() {
             res.status(200).json({ message: 'Voto registrado.' });
         });
         
+        // POST /api/games/:id/veto
         apiRouter.post('/games/:id/veto', async (req, res) => {
             const vetoer = await usersCollection.findOne({ username: req.user.username });
             if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
@@ -231,9 +229,11 @@ async function main() {
             res.status(200).json({ message: `Estadísticas de ${username} actualizadas.` });
         });
 
+        // **INICIO DE LA CORRECCIÓN DE RESET**
         apiRouter.post('/admin/reset-all', async (req, res) => {
             await gamesCollection.deleteMany({});
-            await usersCollection.updateMany({ isAdmin: false }, { $set: {
+            // Se corrige la consulta para que seleccione a todos los usuarios que NO son 'admin'.
+            await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: {
                 tokens: 3,
                 vetoes: 1,
                 prestige: 0,
@@ -241,6 +241,7 @@ async function main() {
             }});
             res.status(200).json({ message: 'Aplicación reseteada a valores por defecto (excepto contraseñas).' });
         });
+        // **FIN DE LA CORRECCIÓN DE RESET**
         
         // --- CONFIGURACIÓN DE RUTAS PRINCIPAL ---
         app.use('/api', apiRouter);
