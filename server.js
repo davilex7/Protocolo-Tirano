@@ -91,48 +91,32 @@ async function main() {
         apiRouter.use(authenticateToken);
 
         apiRouter.get('/state', async (req, res) => {
-            try {
-                const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
-                const games = await gamesCollection.find({}).toArray();
-                res.json({ users, games, currentUser: req.user });
-            } catch (error) {
-                res.status(500).json({ message: "Error al obtener el estado" });
-            }
+            const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
+            const games = await gamesCollection.find({}).toArray();
+            res.json({ users, games, currentUser: req.user });
         });
 
         apiRouter.post('/user/change-password', async (req, res) => {
             const { currentPassword, newPassword } = req.body;
-            if (!currentPassword || !newPassword || newPassword.length < 6) {
-                return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
-            }
+            if (!newPassword || newPassword.length < 6) return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
             const user = await usersCollection.findOne({ username: req.user.username });
-            if (!user || !await bcrypt.compare(currentPassword, user.password)) {
-                return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
-            }
-            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-            await usersCollection.updateOne({ username: req.user.username }, { $set: { password: hashedNewPassword } });
-            res.status(200).json({ message: 'Contraseña actualizada con éxito.' });
+            if (!user || !await bcrypt.compare(currentPassword, user.password)) return res.status(403).json({ message: 'La contraseña actual es incorrecta.' });
+            await usersCollection.updateOne({ username: req.user.username }, { $set: { password: await bcrypt.hash(newPassword, 10) } });
+            res.status(200).json({ message: 'Contraseña actualizada.' });
         });
         
         apiRouter.post('/games', async (req, res) => {
             const user = await usersCollection.findOne({ username: req.user.username });
-            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) {
-                return res.status(403).json({ message: `Cooldown activo hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
-            }
-            if (await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' })) {
-                return res.status(403).json({ message: 'Ya tienes una nominación pendiente de voto.' });
-            }
+            if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `Cooldown activo hasta ${new Date(user.nominationCooldownUntil).toLocaleString()}` });
+            if (await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'pending_vote' })) return res.status(403).json({ message: 'Ya tienes una nominación pendiente.' });
             
-            const newGame = { name: req.body.name, status: 'pending_vote', votes: {}, totalScore: 0, nominatedBy: req.user.username };
-            await gamesCollection.insertOne(newGame);
-            res.status(201).json({ message: 'Juego nominado con éxito.'});
+            await gamesCollection.insertOne({ name: req.body.name, status: 'pending_vote', votes: {}, totalScore: 0, nominatedBy: req.user.username });
+            res.status(201).json({ message: 'Juego nominado.' });
         });
 
         apiRouter.delete('/games/:id', async (req, res) => {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id), nominatedBy: req.user.username, status: 'pending_vote' });
-            if (!game) {
-                return res.status(403).json({ message: 'Acción no permitida.' });
-            }
+            if (!game) return res.status(403).json({ message: 'Acción no permitida.' });
             
             await gamesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
             await usersCollection.updateOne({ username: req.user.username }, { $set: { nominationCooldownUntil: new Date(Date.now() + 24 * 60 * 60 * 1000) } });
@@ -177,14 +161,13 @@ async function main() {
 
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, updateOps);
             await usersCollection.updateOne({ username: voterUsername }, { $inc: { tokens: tokenChange, prestige: prestigeChange } });
-
+            
             if (vote === 3 && oldVote !== 3 && game.nominatedBy && game.nominatedBy !== voterUsername) {
                 const existingThrees = Object.values(game.votes).filter(v => v === 3).length;
-                if (existingThrees === 0) { // Si este es el primer "3" (aparte del nuevo que estamos añadiendo)
+                if (existingThrees === 0) {
                      await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: 1 } });
                 }
             }
-            // (La lógica para retirar prestigio si se quita el único '3' se considera demasiado compleja y se omite)
             
             res.status(200).json({ message: 'Voto registrado.' });
         });
@@ -209,8 +192,7 @@ async function main() {
         apiRouter.post('/admin/reset-password', async (req, res) => {
             const { username, newPassword } = req.body;
             if (!username || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'Datos incompletos.' });
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
-            await usersCollection.updateOne({ username }, { $set: { password: hashedPassword } });
+            await usersCollection.updateOne({ username }, { $set: { password: await bcrypt.hash(newPassword, 10) } });
             res.status(200).json({ message: `Contraseña de ${username} actualizada.` });
         });
 
@@ -221,23 +203,36 @@ async function main() {
 
         apiRouter.post('/admin/update-stats', async (req, res) => {
             const { username, tokens, vetoes, prestige } = req.body;
-            await usersCollection.updateOne({ username }, { $set: { 
-                tokens: parseInt(tokens), 
-                vetoes: parseInt(vetoes), 
-                prestige: parseInt(prestige) 
-            }});
+            await usersCollection.updateOne({ username }, { $set: { tokens: parseInt(tokens), vetoes: parseInt(vetoes), prestige: parseInt(prestige) }});
             res.status(200).json({ message: `Estadísticas de ${username} actualizadas.` });
         });
 
         apiRouter.post('/admin/reset-all', async (req, res) => {
             await gamesCollection.deleteMany({});
-            await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: {
-                tokens: 3,
-                vetoes: 1,
-                prestige: 0,
-                nominationCooldownUntil: null,
-            }});
-            res.status(200).json({ message: 'Aplicación reseteada a valores por defecto (excepto contraseñas).' });
+            await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: { tokens: 3, vetoes: 1, prestige: 0, nominationCooldownUntil: null, }});
+            res.status(200).json({ message: 'Aplicación reseteada a valores por defecto.' });
+        });
+        
+        // **NUEVA RUTA DE ADMIN**
+        apiRouter.post('/admin/games/:id/unveto', async (req, res) => {
+            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+            if (!game || game.status !== 'vetoed') {
+                return res.status(400).json({ message: 'Este juego no está vetado.' });
+            }
+
+            const vetoerUsername = game.vetoedBy;
+            const nominatorUsername = game.nominatedBy;
+
+            // Devolver veto al jugador
+            await usersCollection.updateOne({ username: vetoerUsername }, { $inc: { vetoes: 1 } });
+            // Devolver prestigio al nominador
+            if (nominatorUsername) {
+                await usersCollection.updateOne({ username: nominatorUsername }, { $inc: { prestige: 5 } });
+            }
+            // Reactivar el juego
+            await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'active' }, $unset: { vetoedBy: "" } });
+            
+            res.status(200).json({ message: `Veto levantado. ${vetoerUsername} ha recuperado su Veto.` });
         });
         
         // --- CONFIGURACIÓN DE RUTAS PRINCIPAL ---

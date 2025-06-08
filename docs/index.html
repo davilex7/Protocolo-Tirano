@@ -15,6 +15,7 @@
         .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover { background-color: #374151; }
         .btn-danger { background-color: #ef4444; color: white; } .btn-danger:hover { background-color: #dc2626; }
         .btn-warning { background-color: #f59e0b; color: white; } .btn-warning:hover { background-color: #d97706; }
+        .btn-success { background-color: #22c55e; color: white; } .btn-success:hover { background-color: #16a34a; }
         .btn:disabled { background-color: #374151; opacity: 0.5; cursor: not-allowed; }
         .modal { display: none; } .modal.is-open { display: flex; }
         .hidden { display: none; }
@@ -45,7 +46,7 @@
         </div>
     </div>
 
-    <!-- Contenedor Principal de la App (Oculto por defecto con la clase .hidden) -->
+    <!-- Contenedor Principal de la App (Oculto por defecto) -->
     <div id="app-container" class="hidden flex-grow flex flex-col p-4 md:p-8">
         <div class="max-w-7xl mx-auto w-full flex-grow flex flex-col">
             <header class="mb-8 flex justify-between items-center flex-wrap gap-4">
@@ -79,18 +80,18 @@
     <div id="add-game-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Nominar un Nuevo Juego</h3><form id="add-game-form"><input id="new-game-name" type="text" placeholder="Nombre del Juego" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-3 mb-4 text-white" required><div class="flex justify-end gap-4"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="submit" class="btn btn-primary">Confirmar</button></div></form></div></div>
     <div id="vote-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-2">Votar por: <span id="vote-game-name" class="text-blue-400"></span></h3><p class="text-gray-400 mb-6">Emite o modifica tu voto.</p><form id="vote-form" class="space-y-4"></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cancelar</button><button type="button" id="submit-vote" class="btn btn-primary">Registrar Voto</button></div></div></div>
     <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-md"><h3 class="text-2xl font-bold text-white mb-6">Perfil y Seguridad</h3><form id="change-password-form"><h4 class="text-lg font-semibold text-white mb-4">Cambiar Contraseña</h4><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Contraseña Actual</label><input type="password" id="current-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><div class="mb-4"><label class="block text-gray-300 text-sm mb-2">Nueva Contraseña</label><input type="password" id="new-password" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2 text-white" required></div><button type="submit" class="btn btn-primary w-full">Actualizar Contraseña</button><p id="password-feedback" class="text-center mt-4 h-4"></p></form><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
-    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-4xl max-h-screen overflow-y-auto"><h3 class="text-2xl font-bold text-white mb-6">Panel de Administración</h3><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Jugadores</h4><div id="admin-user-list" class="space-y-4"></div></div><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Juegos</h4><div id="admin-game-list" class="space-y-2"></div></div><div><h4 class="text-lg font-semibold text-white mb-4">Acciones Globales</h4><button id="admin-reset-app-btn" class="btn btn-danger">Resetear Aplicación (Valores por Defecto)</button></div><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
+    <div id="admin-modal" class="modal fixed inset-0 bg-black bg-opacity-75 items-center justify-center p-4"><div class="glassmorphism rounded-lg p-8 w-full max-w-4xl max-h-screen overflow-y-auto"><h3 class="text-2xl font-bold text-white mb-6">Panel de Administración</h3><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Jugadores</h4><div id="admin-user-list" class="space-y-4"></div></div><div class="mb-8"><h4 class="text-lg font-semibold text-white mb-4">Gestionar Juegos</h4><div id="admin-game-list" class="space-y-2"></div></div><div><h4 class="text-lg font-semibold text-white mb-4">Acciones Globales</h4><button id="admin-reset-app-btn" class="btn btn-danger">Resetear Aplicación</button></div><div class="flex justify-end gap-4 mt-6"><button type="button" class="btn btn-secondary cancel-modal">Cerrar</button></div></div></div>
     
     <script>
-        const API_URL = 'https://protocolo-tirano.onrender.com'; // O 'http://localhost:3000'
+        const API_URL = 'https://protocolo-tirano.onrender.com';
         let state = {};
         let modals = {};
 
-        // --- LÓGICA DE LA API ---
         async function apiCall(endpoint, method = 'GET', body = null) {
             const token = localStorage.getItem('accessToken');
             if (!token && endpoint !== '/api/login') {
-                logout(); throw new Error('No hay token');
+                logout();
+                throw new Error('No hay token');
             }
             const options = { method, headers: { 'Authorization': `Bearer ${token}` } };
             if (body) {
@@ -106,14 +107,18 @@
         }
 
         async function fetchState() {
-            try { state = await apiCall('/api/state'); render(); return true; } 
-            catch (error) { console.error("Error al cargar estado:", error); return false; }
+            try { 
+                state = await apiCall('/api/state'); 
+                render(); 
+                return true; 
+            } catch (error) { 
+                console.error("Error al cargar estado:", error); 
+                return false; 
+            }
         }
 
-        // --- RENDERIZADO (SEGURO) ---
         function render() {
-            const currentUserEl = document.getElementById('current-user-name');
-            currentUserEl.textContent = `Conectado como: ${state.currentUser?.name}`; // SECURE: Usar textContent
+            document.getElementById('current-user-name').textContent = `Conectado como: ${state.currentUser?.name}`;
             renderPlayerRanking();
             renderGameList();
             renderNominationStatus();
@@ -131,41 +136,15 @@
 
         function renderPlayerRanking() {
             const el = document.getElementById('player-ranking');
-            el.innerHTML = ''; // Limpiar contenido anterior
+            el.innerHTML = '';
             const playerScores = calculateScores();
             const sortedUsers = [...state.users].filter(u => !u.isAdmin).sort((a,b) => playerScores[b.username] - playerScores[a.username]);
             
             sortedUsers.forEach((user, index) => {
                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-                
-                // Crear elementos programáticamente para evitar XSS
                 const card = document.createElement('div');
                 card.className = 'p-4 rounded-lg bg-gray-800';
-
-                const header = document.createElement('div');
-                header.className = 'flex justify-between items-center';
-                
-                const userInfo = document.createElement('div');
-                userInfo.className = 'flex items-center';
-                const medalSpan = document.createElement('span');
-                medalSpan.className = 'text-2xl w-8';
-                medalSpan.textContent = medal || '_'; // SECURE
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'font-bold text-lg text-white';
-                nameSpan.textContent = user.name; // SECURE
-                userInfo.append(medalSpan, nameSpan);
-                
-                const scoreDiv = document.createElement('div');
-                scoreDiv.className = 'text-2xl font-bold text-blue-400';
-                scoreDiv.textContent = playerScores[user.username] || 0; // SECURE
-                
-                header.append(userInfo, scoreDiv);
-                
-                const stats = document.createElement('div');
-                stats.className = 'mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center';
-                stats.innerHTML = `<div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div>`; // InnerHTML seguro aquí porque no contiene datos de usuario
-                
-                card.append(header, stats);
+                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div><div class="text-2xl font-bold text-blue-400">${playerScores[user.username] || 0}</div></div><div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center"><div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div></div></div>`;
                 el.appendChild(card);
             });
         }
@@ -182,12 +161,12 @@
 
             if (currentUser.nominationCooldownUntil && new Date(currentUser.nominationCooldownUntil) > new Date()) {
                 addBtn.disabled = true;
-                el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`; // SECURE
+                el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`;
             } else {
                 const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && g.status === 'pending_vote');
                  if (pendingNomination) {
                     addBtn.disabled = true;
-                    el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`; // SECURE
+                    el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`;
                 }
             }
         }
@@ -205,79 +184,48 @@
                 return scoreB - scoreA;
             });
 
-            if (sortedGames.length === 0) { 
-                const p = document.createElement('p');
-                p.className = 'text-gray-400';
-                p.textContent = 'No hay juegos nominados.'; // SECURE
-                el.appendChild(p);
-                return;
-            }
+            if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos nominados.</p>'; return; }
             sortedGames.forEach(game => el.appendChild(createGameHTML(game)));
         }
         
         function createGameHTML(game) {
             const card = document.createElement('div');
-
             if (game.status === 'pending_vote') {
                 card.className = 'p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10';
-                const container = document.createElement('div');
-                container.className = 'flex justify-between items-center flex-wrap gap-2';
-                
-                const infoDiv = document.createElement('div');
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'text-xl font-bold text-white';
-                nameSpan.textContent = game.name; // SECURE
-                const nominatorSpan = document.createElement('span');
-                nominatorSpan.className = 'text-xs text-gray-400 ml-2';
-                nominatorSpan.textContent = `de ${state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy}`; // SECURE
-                infoDiv.append(nameSpan, nominatorSpan);
-
-                const buttonsDiv = document.createElement('div');
-                buttonsDiv.className = 'flex gap-2';
+                card.innerHTML = `<div class="flex justify-between items-center flex-wrap gap-2"><div><span class="text-xl font-bold text-white"></span><span class="text-xs text-gray-400 ml-2"></span></div><div class="flex gap-2"></div></div>`;
+                card.querySelector('.text-xl').textContent = game.name;
+                card.querySelector('.text-xs').textContent = `de ${state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy}`;
+                const buttonsDiv = card.querySelector('.flex.gap-2');
                 if (game.nominatedBy === state.currentUser.username) {
                     const cancelBtn = document.createElement('button');
                     cancelBtn.className = 'btn btn-warning text-sm';
-                    cancelBtn.textContent = 'Cancelar'; // SECURE
+                    cancelBtn.textContent = 'Cancelar';
                     cancelBtn.onclick = () => handleCancel(game._id);
                     buttonsDiv.appendChild(cancelBtn);
                 }
                 const voteBtn = document.createElement('button');
                 voteBtn.className = 'btn btn-primary text-sm';
-                voteBtn.textContent = 'Votar'; // SECURE
+                voteBtn.textContent = 'Votar';
                 voteBtn.onclick = () => openVoteModal(game._id);
                 buttonsDiv.appendChild(voteBtn);
-
-                container.append(infoDiv, buttonsDiv);
-                card.appendChild(container);
-
             } else if (game.status === 'vetoed') {
                 card.className = 'p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50';
-                // ... (El código para los juegos vetados es similar, se omite por brevedad pero debe seguir el mismo patrón)
                 const vetoer = state.users.find(p => p.username === game.vetoedBy);
-                card.innerHTML = `<div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name.replace(/</g, "&lt;")}</span><span class="text-sm font-semibold text-red-400">VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase().replace(/</g, "&lt;")}` : ''}</span></div>`;
-            
+                card.innerHTML = `<div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through"></span><span class="text-sm font-semibold text-red-400"></span></div>`;
+                card.querySelector('.text-xl').textContent = game.name;
+                card.querySelector('.text-sm').textContent = `VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}`;
             } else { // active
                 card.className = `p-4 rounded-lg bg-gray-800 ${Object.values(game.votes).includes(0) ? 'border-2 border-red-600' : ''}`;
+                card.innerHTML = `<div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white flex-grow"></h4><div class="flex items-center gap-4 shrink-0"><div class="text-right"><div class="text-3xl font-bold text-blue-400"></div><div class="text-sm text-gray-400">puntos</div></div></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
+                card.querySelector('h4').textContent = game.name;
+                card.querySelector('.text-3xl').textContent = game.totalScore || 0;
                 
-                const header = document.createElement('div');
-                header.className = 'flex justify-between items-center mb-3 flex-wrap gap-2';
-                const title = document.createElement('h4');
-                title.className = 'text-xl font-bold text-white flex-grow';
-                title.textContent = game.name; // SECURE
-                
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'flex items-center gap-4 shrink-0';
-                
-                const scoreDiv = document.createElement('div');
-                scoreDiv.className = 'text-right';
-                scoreDiv.innerHTML = `<div class="text-3xl font-bold text-blue-400">${game.totalScore || 0}</div><div class="text-sm text-gray-400">puntos</div>`; // No user data
-                
+                const actionsDiv = card.querySelector('.flex.items-center.gap-4');
                 const voteBtn = document.createElement('button');
                 voteBtn.className = 'btn btn-primary text-sm';
                 voteBtn.textContent = 'Votar';
                 voteBtn.onclick = () => openVoteModal(game._id);
-                
-                actionsDiv.append(scoreDiv, voteBtn);
+                actionsDiv.appendChild(voteBtn);
 
                 if (state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0)) {
                     const vetoBtn = document.createElement('button');
@@ -286,28 +234,15 @@
                     vetoBtn.onclick = () => handleVeto(game._id);
                     actionsDiv.appendChild(vetoBtn);
                 }
-                
-                header.append(title, actionsDiv);
-                
-                const votesContainer = document.createElement('div');
-                votesContainer.className = 'flex justify-around items-center p-2 bg-gray-900 rounded-lg';
+
+                const votesContainer = card.querySelector('.flex.justify-around');
                 state.users.filter(u=>!u.isAdmin).forEach(p => {
                     const voteDiv = document.createElement('div');
                     voteDiv.className = 'flex flex-col items-center';
-                    const playerName = document.createElement('span');
-                    playerName.className = 'text-xs text-gray-400 mb-1';
-                    playerName.textContent = p.name; // SECURE
-                    const voteBadge = document.createElement('span');
                     const voteValue = game.votes[p.username];
-                    if (voteValue !== undefined && voteValue !== null) {
-                        voteBadge.className = `text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${{ 0: 'bg-red-600', 1: 'bg-yellow-600', 2: 'bg-blue-600', 3: 'bg-green-600' }[voteValue]}`;
-                        voteBadge.textContent = voteValue;
-                    }
-                    voteDiv.append(playerName, voteBadge);
+                    voteDiv.innerHTML = `<span class="text-xs text-gray-400 mb-1">${p.name}</span><span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${voteValue !== undefined ? {0:'bg-red-600',1:'bg-yellow-600',2:'bg-blue-600',3:'bg-green-600'}[voteValue] : ''}">${voteValue ?? ''}</span>`;
                     votesContainer.appendChild(voteDiv);
                 });
-                
-                card.append(header, votesContainer);
                 
                 if (Object.values(game.votes).includes(0)) {
                     const blockedText = document.createElement('p');
@@ -319,13 +254,12 @@
             return card;
         }
 
-
         function calculateScores() {
             const scores = {};
             state.users.forEach(u => scores[u.username] = 0);
             state.games.forEach(game => {
                 if (game.status === 'active') {
-                    game.totalScore = Object.values(game.votes).reduce((sum, vote) => sum + vote, 0);
+                    game.totalScore = Object.values(game.votes).reduce((sum, vote) => sum + (vote || 0), 0);
                     for (const username in game.votes) {
                         scores[username] = (scores[username] || 0) + game.votes[username];
                     }
@@ -334,7 +268,6 @@
             return scores;
         }
 
-        // --- MANEJO DE EVENTOS Y MODALES ---
         function openVoteModal(gameId) {
             const game = state.games.find(g => g._id === gameId);
             const user = state.users.find(u => u.username === state.currentUser.username);
@@ -349,11 +282,7 @@
             
             voteForm.innerHTML = `<select id="user-vote-select" class="w-full bg-gray-700 rounded-lg p-2 text-white"><option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option><option value="2">2 (Aceptable)</option><option value="1">1 (Tolerable)</option><option value="0">0 (Rechazo)</option></select>`;
             
-            if (currentVote !== undefined) {
-                document.getElementById('user-vote-select').value = currentVote;
-            } else {
-                 document.getElementById('user-vote-select').value = "2";
-            }
+            document.getElementById('user-vote-select').value = (currentVote !== undefined) ? currentVote : "2";
             modals.vote.classList.add('is-open');
         }
         
@@ -367,22 +296,10 @@
             const userListEl = document.getElementById('admin-user-list');
             userListEl.innerHTML = '';
             state.users.filter(u => !u.isAdmin).forEach(user => {
-                const userCard = document.createElement('div');
-                userCard.className = 'p-3 bg-gray-800 rounded-lg';
-                userCard.innerHTML = `<p class="font-bold text-white mb-2">${user.name.replace(/</g, "&lt;")} (${user.username.replace(/</g, "&lt;")})</p>`; // Simple, non-interactive text
-                
-                const statsForm = document.createElement('form');
-                statsForm.className = 'grid grid-cols-1 md:grid-cols-2 gap-4';
-                statsForm.onsubmit = (e) => handleAdminUpdateStats(e, user.username);
-                statsForm.innerHTML = `<div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" class="w-full bg-gray-700 p-1 rounded"></div><div class="flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div>`;
-                
-                const passForm = document.createElement('form');
-                passForm.className = 'mt-4';
-                passForm.onsubmit = (e) => handleAdminResetPassword(e, user.username);
-                passForm.innerHTML = `<label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div>`;
-                
-                userCard.append(statsForm, passForm);
-                userListEl.appendChild(userCard);
+                 const userCard = document.createElement('div');
+                 userCard.className = 'p-3 bg-gray-800 rounded-lg';
+                 userCard.innerHTML = `<p class="font-bold text-white mb-2">${user.name.replace(/</g, "&lt;")} (${user.username.replace(/</g, "&lt;")})</p><form class="grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="handleAdminUpdateStats(event, '${user.username}')"><div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" class="w-full bg-gray-700 p-1 rounded"></div><div class="flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div></form><form class="mt-4" onsubmit="handleAdminResetPassword(event, '${user.username}')"><label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div></form>`;
+                 userListEl.appendChild(userCard);
             });
 
             const gameListEl = document.getElementById('admin-game-list');
@@ -390,13 +307,24 @@
             state.games.forEach(game => {
                 const gameDiv = document.createElement('div');
                 gameDiv.className = 'flex justify-between items-center p-2 bg-gray-800 rounded';
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = game.name; // SECURE
+                gameDiv.innerHTML = `<span></span><div class="flex gap-2"></div>`;
+                gameDiv.querySelector('span').textContent = game.name;
+                
+                const buttonsDiv = gameDiv.querySelector('.flex.gap-2');
+                if (game.status === 'vetoed') {
+                    const unvetoBtn = document.createElement('button');
+                    unvetoBtn.className = 'btn btn-success btn-sm text-xs';
+                    unvetoBtn.textContent = 'Levantar Veto';
+                    unvetoBtn.onclick = () => handleAdminUnveto(game._id, game.name);
+                    buttonsDiv.appendChild(unvetoBtn);
+                }
+
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'btn btn-danger btn-sm text-xs';
                 deleteBtn.textContent = 'Eliminar';
                 deleteBtn.onclick = () => handleAdminDeleteGame(game._id, game.name);
-                gameDiv.append(nameSpan, deleteBtn);
+                buttonsDiv.appendChild(deleteBtn);
+
                 gameListEl.appendChild(gameDiv);
             });
             modals.admin.classList.add('is-open');
@@ -445,6 +373,17 @@
                 alert(result.message); modals.admin.classList.remove('is-open'); await fetchState();
             } catch(error) { alert(error.message); }
         }
+        
+        async function handleAdminUnveto(gameId, gameName) {
+            if (!confirm(`¿Seguro que quieres levantar el veto del juego "${gameName}"? Esto devolverá el Veto y el Prestigio a los jugadores implicados.`)) return;
+            try {
+                const result = await apiCall(`/api/admin/games/${gameId}/unveto`, 'POST');
+                alert(result.message);
+                await fetchState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
 
         async function handleCancel(gameId) {
             if (!confirm("¿Seguro? No podrás nominar otro juego durante 24 horas.")) return;
@@ -476,7 +415,6 @@
             }
         }
 
-        // --- LÓGICA DE VISIBILIDAD Y ARRANQUE ---
         const loginContainer = document.getElementById('login-container');
         const appContainer = document.getElementById('app-container');
 
@@ -509,7 +447,6 @@
             }
         }
 
-        // --- INICIALIZACIÓN DE EVENTOS ---
         document.addEventListener('DOMContentLoaded', () => {
             modals = { addGame: document.getElementById('add-game-modal'), vote: document.getElementById('vote-modal'), profile: document.getElementById('profile-modal'), admin: document.getElementById('admin-modal') };
             
