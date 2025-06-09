@@ -57,13 +57,33 @@ async function finalizeVotes(gameId) {
 
     console.log(`[EXEC] Iniciando finalización para: "${game.name}"`);
 
-    const allActivePlayers = await usersCollection.find({ isAdmin: false }).toArray();
+    // --- CORRECCIÓN ---
+    // Se obtiene primero a TODOS los usuarios y luego se filtra el admin.
+    // Esto hace que la recuperación de datos sea más robusta.
+    const allUsers = await usersCollection.find({}).toArray();
+    const allActivePlayers = allUsers.filter(u => u.isAdmin === false);
+    
+    console.log(`[DEBUG] Total de usuarios en BD: ${allUsers.length}. Jugadores activos detectados: ${allActivePlayers.length}.`);
+
+
+    if (allActivePlayers.length === 0) {
+        console.log("[ERROR] No se encontraron jugadores activos. Abortando cálculo de estadísticas.");
+        // Aun así, se finaliza el estado del juego para evitar que quede bloqueado
+        await gamesCollection.updateOne(
+            { _id: new ObjectId(game._id) },
+            { $set: { status: 'active' }, $unset: { revealAt: "" } }
+        );
+        console.log(`[FIN-ERROR] Votación para "${game.name}" finalizada sin cambios por falta de jugadores.`);
+        return;
+    }
     
     // 1. Inicializar un objeto para llevar la cuenta de los cambios
     const statChanges = {};
     allActivePlayers.forEach(p => {
         statChanges[p.username] = { tokens: 0, prestige: 0 };
     });
+    console.log('[DEBUG] Objeto de cambios inicializado:', JSON.stringify(statChanges, null, 2));
+
 
     const finalVotes = { ...game.votes };
 
@@ -73,8 +93,8 @@ async function finalizeVotes(gameId) {
         let vote = -1; // -1 indica que no hay voto
 
         // Determinar el voto final del jugador
-        if (game.votes.hasOwnProperty(username)) {
-            vote = game.votes[username];
+        if (finalVotes.hasOwnProperty(username)) {
+            vote = finalVotes[username];
         } else {
             // Jugador no votó, aplicar penalización y asignar voto 0
             console.log(` -> ${username} no votó. Penalización: -1 prestigio.`);
