@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protocolo Tirano</title>
-    <!-- CORRECCIÓN: URLs limpias para los recursos CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -87,6 +86,7 @@
         const API_URL = 'https://protocolo-tirano.onrender.com';
         let state = {};
         let modals = {};
+        let voteTimers = {};
 
         async function apiCall(endpoint, method = 'GET', body = null) {
             const token = localStorage.getItem('accessToken');
@@ -107,6 +107,8 @@
         }
 
         async function fetchState() {
+            Object.values(voteTimers).forEach(clearInterval);
+            voteTimers = {};
             try { 
                 state = await apiCall('/api/state'); 
                 render(); 
@@ -166,10 +168,10 @@
                 addBtn.disabled = true;
                 el.textContent = `No puedes nominar hasta: ${new Date(currentUser.nominationCooldownUntil).toLocaleString()}`;
             } else {
-                const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && g.status === 'pending_vote');
+                const pendingNomination = state.games.find(g => g.nominatedBy === currentUser.username && (g.status === 'pending_vote' || g.status === 'voting'));
                  if (pendingNomination) {
                     addBtn.disabled = true;
-                    el.textContent = `Tienes una nominación pendiente: "${pendingNomination.name}"`;
+                    el.textContent = `Tienes una nominación en curso: "${pendingNomination.name}"`;
                 }
             }
         }
@@ -180,8 +182,8 @@
             const sortedGames = [...state.games].sort((a, b) => {
                 const scoreA = a.totalScore ?? 0;
                 const scoreB = b.totalScore ?? 0;
-                if(a.status === 'pending_vote' && b.status !== 'pending_vote') return -1;
-                if(a.status !== 'pending_vote' && b.status === 'pending_vote') return 1;
+                if(a.status === 'voting' && b.status !== 'voting') return -1;
+                if(a.status !== 'voting' && b.status === 'voting') return 1;
                 if(a.status === 'vetoed' && b.status !== 'vetoed') return 1;
                 if(a.status !== 'vetoed' && b.status === 'vetoed') return -1;
                 return scoreB - scoreA;
@@ -193,32 +195,79 @@
         
         function createGameHTML(game) {
             const card = document.createElement('div');
-            if (game.status === 'pending_vote') {
-                card.className = 'p-4 rounded-lg border-2 border-dashed border-blue-500 bg-blue-500 bg-opacity-10';
-                card.innerHTML = `<div class="flex justify-between items-center flex-wrap gap-2"><div><span class="text-xl font-bold text-white"></span><span class="text-xs text-gray-400 ml-2"></span></div><div class="flex gap-2"></div></div>`;
+            
+            if (game.status === 'voting') {
+                card.className = 'p-4 rounded-lg border-2 border-dashed border-yellow-500 bg-yellow-500 bg-opacity-10';
+                const nominator = state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy;
+                const hasVoted = game.votes.hasOwnProperty(state.currentUser.username);
+                
+                card.innerHTML = `<div class="flex justify-between items-center flex-wrap gap-2 mb-3"><div><span class="text-xl font-bold text-white"></span><span class="text-xs text-gray-400 ml-2"></span></div><div class="flex items-center gap-2"></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
                 card.querySelector('.text-xl').textContent = game.name;
-                card.querySelector('.text-xs').textContent = `de ${state.users.find(u=>u.username===game.nominatedBy)?.name || game.nominatedBy}`;
-                const buttonsDiv = card.querySelector('.flex.gap-2');
+                card.querySelector('.text-xs').textContent = `de ${nominator}`;
+                const buttonsDiv = card.querySelector('.flex.items-center.gap-2');
+                
+                const timerSpan = document.createElement('span');
+                timerSpan.id = `timer-${game._id}`;
+                timerSpan.className = 'text-sm font-mono text-yellow-300';
+                buttonsDiv.appendChild(timerSpan);
+
+                if (state.currentUser.isAdmin) {
+                    const revealBtn = document.createElement('button');
+                    revealBtn.className = 'btn btn-warning btn-sm text-xs';
+                    revealBtn.textContent = 'Revelar';
+                    revealBtn.onclick = () => handleAdminReveal(game._id);
+                    buttonsDiv.appendChild(revealBtn);
+                }
                 if (!state.currentUser.isAdmin) {
-                    if (game.nominatedBy === state.currentUser.username) {
-                        const cancelBtn = document.createElement('button');
-                        cancelBtn.className = 'btn btn-warning text-sm';
-                        cancelBtn.textContent = 'Cancelar';
-                        cancelBtn.onclick = () => handleCancel(game._id);
-                        buttonsDiv.appendChild(cancelBtn);
-                    }
                     const voteBtn = document.createElement('button');
-                    voteBtn.className = 'btn btn-primary text-sm';
-                    voteBtn.textContent = 'Votar';
+                    voteBtn.className = `btn ${hasVoted ? 'btn-secondary' : 'btn-primary'} text-sm`;
+                    voteBtn.textContent = hasVoted ? 'Modificar Voto' : 'Votar';
                     voteBtn.onclick = () => openVoteModal(game._id);
                     buttonsDiv.appendChild(voteBtn);
                 }
+                
+                const votesContainer = card.querySelector('.flex.justify-around');
+                state.users.filter(u => !u.isAdmin).forEach(p => {
+                    const voteDiv = document.createElement('div');
+                    voteDiv.className = 'flex flex-col items-center';
+                    let voteContent = '';
+                    if (game.votes.hasOwnProperty(p.username)) {
+                        if (state.currentUser.isAdmin || state.currentUser.username === p.username) {
+                            voteContent = `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full bg-purple-600">${game.votes[p.username]}</span>`;
+                        } else {
+                            voteContent = `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full bg-gray-600">?</span>`;
+                        }
+                    }
+                    voteDiv.innerHTML = `<span class="text-xs text-gray-400 mb-1">${p.name}</span>${voteContent}`;
+                    votesContainer.appendChild(voteDiv);
+                });
+
+                const revealDate = new Date(game.revealAt).getTime();
+                if (voteTimers[game._id]) clearInterval(voteTimers[game._id]);
+                function updateTimer() {
+                    const now = new Date().getTime();
+                    const distance = revealDate - now;
+                    if (distance < 0) {
+                        timerSpan.textContent = "Finalizando...";
+                        clearInterval(voteTimers[game._id]);
+                        setTimeout(() => { if (document.getElementById(`timer-${game._id}`)) fetchState(); }, 2000);
+                        return;
+                    }
+                    const hours = Math.floor(distance / (1000 * 60 * 60));
+                    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                    timerSpan.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }
+                updateTimer();
+                voteTimers[game._id] = setInterval(updateTimer, 1000);
+
             } else if (game.status === 'vetoed') {
                 card.className = 'p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50';
                 const vetoer = state.users.find(p => p.username === game.vetoedBy);
                 card.innerHTML = `<div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through"></span><span class="text-sm font-semibold text-red-400"></span></div>`;
                 card.querySelector('.text-xl').textContent = game.name;
                 card.querySelector('.text-sm').textContent = `VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}`;
+            
             } else { // active
                 card.className = `p-4 rounded-lg bg-gray-800 ${Object.values(game.votes).includes(0) ? 'border-2 border-red-600' : ''}`;
                 card.innerHTML = `<div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white flex-grow"></h4><div class="flex items-center gap-4 shrink-0"><div class="text-right"><div class="text-3xl font-bold text-blue-400"></div><div class="text-sm text-gray-400">puntos</div></div></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
@@ -229,7 +278,7 @@
                 if (!state.currentUser.isAdmin) {
                     const voteBtn = document.createElement('button');
                     voteBtn.className = 'btn btn-primary text-sm';
-                    voteBtn.textContent = 'Votar';
+                    voteBtn.textContent = 'Modificar Voto';
                     voteBtn.onclick = () => openVoteModal(game._id);
                     actionsDiv.appendChild(voteBtn);
 
@@ -381,15 +430,12 @@
             } catch(error) { alert(error.message); }
         }
         
-        async function handleAdminUnveto(gameId, gameName) {
-            if (!confirm(`¿Seguro que quieres levantar el veto del juego "${gameName}"? Esto devolverá el Veto y el Prestigio a los jugadores implicados.`)) return;
+        async function handleAdminReveal(gameId) {
+            if (!confirm("¿Seguro que quieres finalizar esta votación ahora?")) return;
             try {
-                const result = await apiCall(`/api/admin/games/${gameId}/unveto`, 'POST');
-                alert(result.message);
+                await apiCall(`/api/admin/games/${gameId}/reveal`, 'POST');
                 await fetchState();
-            } catch (error) {
-                alert(error.message);
-            }
+            } catch (error) { alert(error.message); }
         }
 
         async function handleCancel(gameId) {
