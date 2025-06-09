@@ -57,8 +57,6 @@ async function finalizeVotes(gameId) {
 
     console.log(`[EXEC] Iniciando finalización para: "${game.name}"`);
 
-    // --- CORRECCIÓN FINAL ---
-    // Se filtra por nombre de usuario para garantizar la correcta identificación de los jugadores.
     const allUsers = await usersCollection.find({}).toArray();
     const allActivePlayers = allUsers.filter(u => u.username !== 'admin');
     
@@ -67,7 +65,6 @@ async function finalizeVotes(gameId) {
 
     if (allActivePlayers.length === 0) {
         console.log("[ERROR] No se encontraron jugadores activos. Abortando cálculo de estadísticas.");
-        // Aun así, se finaliza el estado del juego para evitar que quede bloqueado
         await gamesCollection.updateOne(
             { _id: new ObjectId(game._id) },
             { $set: { status: 'active' }, $unset: { revealAt: "" } }
@@ -76,33 +73,26 @@ async function finalizeVotes(gameId) {
         return;
     }
     
-    // 1. Inicializar un objeto para llevar la cuenta de los cambios
     const statChanges = {};
     allActivePlayers.forEach(p => {
         statChanges[p.username] = { tokens: 0, prestige: 0 };
     });
-    console.log('[DEBUG] Objeto de cambios inicializado:', JSON.stringify(statChanges, null, 2));
-
 
     const finalVotes = { ...game.votes };
 
-    // 2. Procesar a cada jugador activo
     allActivePlayers.forEach(player => {
         const username = player.username;
-        let vote = -1; // -1 indica que no hay voto
+        let vote = -1; 
 
-        // Determinar el voto final del jugador
         if (finalVotes.hasOwnProperty(username)) {
             vote = finalVotes[username];
         } else {
-            // Jugador no votó, aplicar penalización y asignar voto 0
             console.log(` -> ${username} no votó. Penalización: -1 prestigio.`);
             statChanges[username].prestige -= 1;
             vote = 0;
-            finalVotes[username] = 0; // Añadir al registro final
+            finalVotes[username] = 0;
         }
         
-        // Aplicar consecuencias económicas del voto final
         if (vote === 3) {
             console.log(` -> ${username} votó 3. Consecuencia: -1 token.`);
             statChanges[username].tokens -= 1;
@@ -115,7 +105,6 @@ async function finalizeVotes(gameId) {
         }
     });
 
-    // 3. Otorgar prestigio al nominador por apoyo externo
     const nominator = game.nominatedBy;
     if (nominator && statChanges.hasOwnProperty(nominator)) {
         const hasExternalSupport = Object.entries(finalVotes).some(
@@ -129,7 +118,6 @@ async function finalizeVotes(gameId) {
 
     console.log('[DEBUG] Cambios de estadísticas calculados:', JSON.stringify(statChanges, null, 2));
 
-    // 4. Construir las operaciones de actualización para la BD
     const bulkUserOps = Object.entries(statChanges)
         .filter(([_, change]) => change.tokens !== 0 || change.prestige !== 0)
         .map(([username, change]) => ({
@@ -139,7 +127,6 @@ async function finalizeVotes(gameId) {
             }
         }));
 
-    // 5. Aplicar cambios si los hay
     if (bulkUserOps.length > 0) {
         console.log(` -> Aplicando ${bulkUserOps.length} actualizaciones a la base de datos.`);
         await usersCollection.bulkWrite(bulkUserOps);
@@ -147,7 +134,6 @@ async function finalizeVotes(gameId) {
         console.log(" -> No se encontraron cambios de estadísticas para aplicar.");
     }
     
-    // 6. Actualizar el estado del juego
     await gamesCollection.updateOne(
         { _id: new ObjectId(game._id) },
         { $set: { votes: finalVotes, status: 'active' }, $unset: { revealAt: "" } }
@@ -245,21 +231,36 @@ async function main() {
             res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
         });
 
+        // --- INICIO DE LA CORRECCIÓN ---
         apiRouter.post('/games/:id/vote', async (req, res) => {
             if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede votar.' });
+            
+            const gameId = req.params.id;
             const { vote } = req.body;
-            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+            
+            const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
             if (!game || game.status !== 'voting') return res.status(400).json({ message: 'La votación para este juego ha terminado.' });
 
+            // Aplicar penalización si el voto se modifica
             const oldVote = game.votes[req.user.username];
             if (oldVote !== undefined && oldVote !== vote) {
-                // Penalización por modificar voto
                 await usersCollection.updateOne({ username: req.user.username }, { $inc: { prestige: -1 }});
             }
             
-            await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { [`votes.${req.user.username}`]: vote } });
-            res.status(200).json({ message: 'Voto registrado.' });
+            // Registrar el nuevo voto
+            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { [`votes.${req.user.username}`]: vote } });
+            res.status(200).json({ message: 'Voto registrado.' }); // Responder inmediatamente al usuario
+
+            // Comprobar si la votación ha finalizado después de responder
+            const updatedGame = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
+            const playerCount = await usersCollection.countDocuments({ username: { $ne: 'admin' } });
+            
+            if (Object.keys(updatedGame.votes).length >= playerCount) {
+                console.log(`[AUTO-FINALIZE] Todos los ${playerCount} jugadores han votado. Finalizando votación para "${updatedGame.name}".`);
+                await finalizeVotes(gameId);
+            }
         });
+        // --- FIN DE LA CORRECCIÓN ---
         
         apiRouter.post('/games/:id/veto', async (req, res) => {
             const vetoer = await usersCollection.findOne({ username: req.user.username });
