@@ -401,6 +401,18 @@
             } catch (error) { alert(error.message); }
         }
 
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Se añade la función que faltaba
+        async function handleAdminUnveto(gameId, gameName) {
+            if (!confirm(`¿Seguro que quieres levantar el veto del juego "${gameName}"?`)) return;
+            try {
+                const result = await apiCall(`/api/admin/games/${gameId}/unveto`, 'POST');
+                alert(result.message); await fetchState();
+                openAdminModal(); // Refrescar el contenido del modal
+            } catch (error) { alert(error.message); }
+        }
+        // --- FIN DE LA CORRECCIÓN ---
+
         async function handleAdminUpdateStats(e, username) {
             e.preventDefault();
             const form = e.target;
