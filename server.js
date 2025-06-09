@@ -76,17 +76,29 @@ async function finalizeVotes(gameId) {
     
     // Calcular efectos para todos los votos finales
     for (const username in finalVotes) {
-        const vote = finalVotes[username];
-        if (vote === 3) changes[username].tokens -= 1;
-        if (vote === 0) changes[username].tokens += 1;
-        if (vote === 1) changes[username].prestige += 0.5;
+        // *** INICIO DE LA CORRECCIÓN ***
+        // Se añade una comprobación para asegurar que el 'username' del voto
+        // corresponde a un jugador actualmente activo. Esto evita el crash si un
+        // usuario fue eliminado o modificado después de haber votado.
+        if (changes.hasOwnProperty(username)) {
+            const vote = finalVotes[username];
+            if (vote === 3) changes[username].tokens -= 1;
+            if (vote === 0) changes[username].tokens += 1;
+            if (vote === 1) changes[username].prestige += 0.5;
+        } else {
+            console.log(`Omitiendo el voto del usuario '${username}' porque ya no es un jugador activo o ha sido eliminado.`);
+        }
+        // *** FIN DE LA CORRECCIÓN ***
     }
     
     // Otorgar prestigio por el primer '3' externo
     if (game.nominatedBy) {
-        const externalThrees = Object.entries(finalVotes).filter(([user, vote]) => vote === 3 && user !== game.nominatedBy);
-        if (externalThrees.length > 0) {
-            changes[game.nominatedBy].prestige += 1;
+        // Asegurarse de que el nominador todavía existe antes de intentar darle prestigio.
+        if (changes.hasOwnProperty(game.nominatedBy)) {
+            const externalThrees = Object.entries(finalVotes).filter(([user, vote]) => vote === 3 && user !== game.nominatedBy);
+            if (externalThrees.length > 0) {
+                changes[game.nominatedBy].prestige += 1;
+            }
         }
     }
 
@@ -159,13 +171,18 @@ async function main() {
 
         // --- RUTAS AUTENTICADAS ---
         apiRouter.get('/state', async (req, res) => {
-            const expiredGames = await gamesCollection.find({ status: 'voting', revealAt: { $lte: new Date() } }).toArray();
-            for (const game of expiredGames) {
-                await finalizeVotes(game._id);
+            try {
+                const expiredGames = await gamesCollection.find({ status: 'voting', revealAt: { $lte: new Date() } }).toArray();
+                for (const game of expiredGames) {
+                    await finalizeVotes(game._id);
+                }
+                const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
+                const games = await gamesCollection.find({}).toArray();
+                res.json({ users, games, currentUser: req.user });
+            } catch (error) {
+                console.error("Error en /api/state:", error);
+                res.status(500).json({ message: "Error interno del servidor al obtener el estado."});
             }
-            const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
-            const games = await gamesCollection.find({}).toArray();
-            res.json({ users, games, currentUser: req.user });
         });
 
         apiRouter.post('/user/change-password', async (req, res) => {
@@ -203,10 +220,10 @@ async function main() {
             if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede votar.' });
             const { vote } = req.body;
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
-            if (game.status !== 'voting') return res.status(400).json({ message: 'La votación para este juego ha terminado.' });
+            if (!game || game.status !== 'voting') return res.status(400).json({ message: 'La votación para este juego ha terminado.' });
 
             const oldVote = game.votes[req.user.username];
-            if (oldVote !== undefined) {
+            if (oldVote !== undefined && oldVote !== vote) {
                 // Penalización por modificar voto
                 await usersCollection.updateOne({ username: req.user.username }, { $inc: { prestige: -1 }});
             }
@@ -220,7 +237,8 @@ async function main() {
             if (vetoer.vetoes < 1) return res.status(403).json({ message: 'No tienes vetos restantes.' });
             
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
-            if (!game || game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
+            if (!game || game.status !== 'active') return res.status(403).json({ message: 'Solo se pueden vetar juegos activos.' });
+            if (game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
             await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1 } });
             if (game.nominatedBy) await usersCollection.updateOne({ username: game.nominatedBy }, { $inc: { prestige: -3 } });
@@ -231,8 +249,13 @@ async function main() {
         
         // --- RUTAS DE ADMINISTRADOR ---
         apiRouter.post('/admin/games/:id/reveal', isAdmin, async (req, res) => {
-            await finalizeVotes(req.params.id);
-            res.status(200).json({ message: 'Votación finalizada por el admin.' });
+            try {
+                await finalizeVotes(req.params.id);
+                res.status(200).json({ message: 'Votación finalizada por el admin.' });
+            } catch (error) {
+                console.error("Error al finalizar votación (admin):", error);
+                res.status(500).json({ message: "Error interno del servidor al finalizar la votación."});
+            }
         });
         
         apiRouter.post('/admin/reset-password', isAdmin, async (req, res) => {
