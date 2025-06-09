@@ -1,4 +1,4 @@
-# Guía de Campo: Protocolo Tirano (Edición Final Definitiva)
+# Guía de Campo: Protocolo Tirano (Edición Final)
 
 ## 1. El Propósito de esta Guerra
 
@@ -8,14 +8,11 @@ Esta aplicación es el árbitro digital de nuestra competición. Su misión es:
 2.  **Generar una Lista Jerarquizada:** Ordenar los juegos según el deseo colectivo para eliminar el debate sobre "a qué jugar".
 3.  **Otorgar Poder:** Recompensar al jugador con mayor influencia y reputación con el poder de dirigir la sesión de juego.
 
-## 2. Los Dos Tronos: Versatilidad vs. Prestigio
+El sistema está diseñado para que cada acción estratégica tenga un coste. No hay lugar para la explotación.
 
-Existen dos rankings paralelos que definen tu estatus en esta guerra.
+## 2. El Arsenal: Reglas de Combate
 
-* **El Ranking de Versatilidad:** Se basa en tu puntuación total, que es la suma de todos tus votos. El objetivo principal es quedar primero en este ranking.
-* **El Ranking de Prestigio:** Es una medida de tu honor, reputación e influencia. Liderar este ranking te otorga un poder decisivo.
-
-## 3. El Arsenal: Reglas de Combate
+Cada jugador gestiona una serie de recursos que definen su influencia en la partida.
 
 ### Tokens de Prioridad: La Moneda de la Influencia
 * **Votar "3" (Prioridad Alta):** Cuesta **1 Token de Prioridad**.
@@ -24,22 +21,30 @@ Existen dos rankings paralelos que definen tu estatus en esta guerra.
 * **Capital Inicial:** Cada jugador comienza con **3 Tokens**.
 
 ### La Economía del Prestigio
+El Prestigio es una puntuación de carrera que mide tu reputación y buen hacer.
 * **Ganancia Positiva:**
     * Ganas **+1 de Prestigio** por el **primer voto de "3"** que reciba un juego que tú nominaste (emitido por otro jugador).
     * Ganas **+0.5 de Prestigio** cada vez que emites un voto **"1" (Tolerable)**.
 * **Pérdida Negativa:**
-    * Sufres **-3 de Prestigio** si una de tus nominaciones es vetada. (Penalización ajustada).
+    * Sufres **-3 de Prestigio** si una de tus nominaciones es vetada.
     * Sufres **-1 de Prestigio** cada vez que **modificas un voto** ya emitido.
-
-### Nominaciones y Votos
-* **Cola de Nominación:** No puedes nominar un juego nuevo si ya tienes una propuesta tuya esperando a ser votada.
-* **Cancelación Táctica:** Puedes cancelar tu propia nominación pendiente, pero al hacerlo, sufres un **cooldown de 24 horas**.
-* **Votación Individual:** Cada jugador vota desde su sesión. Un juego nominado se activa en cuanto recibe el primer voto (de alguien que no sea el nominador).
-* **Modificación de Voto:** Puedes modificar tu voto en cualquier momento. La economía de Tokens se ajustará automáticamente, pero recuerda que cada modificación cuesta 1 Prestigio.
 
 ### Vetos: La Bala de Plata
 * **Asignación:** Cada jugador tiene **un (1) Veto**. No se regenera.
 * **Condición de Uso:** Para vetar un juego, es **obligatorio** haberle votado **"0"** previamente.
+
+## 3. El Campo de Batalla: La Votación
+
+### Nominaciones
+* **Cola de Nominación:** No puedes nominar un juego nuevo si ya tienes una propuesta tuya en curso.
+* **Cancelación Táctica:** Puedes cancelar tu propia nominación pendiente, pero al hacerlo, sufres un **cooldown de 24 horas**.
+
+### El Voto Sellado
+Para eliminar el "voto parásito" y forzar la honestidad, las votaciones son secretas.
+1.  **Inicio:** Al nominar un juego, se inicia un **temporizador de 24 horas**.
+2.  **Votación:** Durante ese tiempo, los jugadores emiten su voto. Solo podrás ver *quién* ha votado, pero no el valor (aparecerá como "?"). El admin sí puede ver los votos.
+3.  **Revelación:** Pasadas las 24h (o si el admin lo fuerza), todos los votos se revelan y se calculan los efectos.
+4.  **Penalización por Inacción:** Los jugadores que no voten en el plazo sufrirán una penalización de **-1 de Prestigio** y su voto se registrará automáticamente como un "0".
 
 ## 4. La Recompensa Final: La Decisión del Estratega
 

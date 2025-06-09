@@ -42,59 +42,75 @@ const isAdmin = async (req, res, next) => {
     }
 };
 
-// --- Lógica de Finalización de Votos ---
-async function finalizeVotes(game) {
+// --- Lógica de Finalización de Votos (Refactorizada y Robusta) ---
+async function finalizeVotes(gameId) {
+    const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
     if (!game || game.status !== 'voting') return;
 
-    const allUsernames = (await usersCollection.find({ isAdmin: false }).project({ username: 1 }).toArray()).map(u => u.username);
-    const voters = Object.keys(game.votes);
-    const nonVoters = allUsernames.filter(u => !voters.includes(u));
+    console.log(`Finalizando votación para el juego: ${game.name}`);
+
+    const allPlayerUsernames = (await usersCollection.find({ isAdmin: false }).project({ username: 1 }).toArray()).map(u => u.username);
+    const votersUsernames = Object.keys(game.votes);
+    const nonVotersUsernames = allPlayerUsernames.filter(u => !votersUsernames.includes(u));
     
-    // Penalizar a los que no votaron
-    if (nonVoters.length > 0) {
+    // 1. Asignar voto '0' y penalizar a los que no votaron
+    const finalVotes = { ...game.votes };
+    if (nonVotersUsernames.length > 0) {
         await usersCollection.updateMany(
-            { username: { $in: nonVoters } },
-            { $inc: { prestige: -1, tokens: 1 } } // Ganan token por el 0 automático, pero pierden prestigio
+            { username: { $in: nonVotersUsernames } },
+            { $inc: { prestige: -1 } } // Penalización por inacción
         );
-        nonVoters.forEach(username => game.votes[username] = 0);
+        nonVotersUsernames.forEach(username => {
+            finalVotes[username] = 0; // Se les asigna un 0
+        });
     }
     
-    const finalVotes = game.votes;
-    
-    // Aplicar efectos de votos finales
-    const usersToUpdate = await usersCollection.find({ username: { $in: Object.keys(finalVotes) } }).toArray();
-    
+    // 2. Calcular todos los cambios de Tokens y Prestigio basados en los votos finales
     const tokenChanges = {};
     const prestigeChanges = {};
 
-    Object.entries(finalVotes).forEach(([username, vote]) => {
+    for (const username in finalVotes) {
+        const vote = finalVotes[username];
         tokenChanges[username] = tokenChanges[username] || 0;
         prestigeChanges[username] = prestigeChanges[username] || 0;
         
         if (vote === 3) tokenChanges[username] -= 1;
-        // La ganancia de token por el '0' ya se aplicó a los nonVoters, aquí se aplica a los que sí votaron
-        if (vote === 0 && voters.includes(username)) tokenChanges[username] += 1;
+        if (vote === 0) tokenChanges[username] += 1; // Todos los que terminan con 0 ganan un token
         if (vote === 1) prestigeChanges[username] += 0.5;
-    });
-
+    }
+    
     // Otorgar prestigio por el primer '3' externo
     const externalThrees = Object.entries(finalVotes).filter(([user, vote]) => vote === 3 && user !== game.nominatedBy);
     if (externalThrees.length > 0 && game.nominatedBy) {
         prestigeChanges[game.nominatedBy] = (prestigeChanges[game.nominatedBy] || 0) + 1;
     }
-    
-    // Aplicar cambios en bulk
-    const bulkUserOps = Object.keys(tokenChanges).map(username => ({
-        updateOne: {
-            filter: { username },
-            update: { $inc: { tokens: tokenChanges[username] || 0, prestige: prestigeChanges[username] || 0 } }
-        }
-    })).filter(op => op.updateOne.update.$inc.tokens !== 0 || op.updateOne.update.$inc.prestige !== 0);
 
-    if (bulkUserOps.length > 0) await usersCollection.bulkWrite(bulkUserOps);
+    // 3. Aplicar cambios a la base de datos en una sola operación por cada usuario
+    const bulkUserOps = Object.keys(finalVotes).map(username => {
+        const incUpdate = {};
+        if (tokenChanges[username]) incUpdate.tokens = tokenChanges[username];
+        if (prestigeChanges[username]) incUpdate.prestige = prestigeChanges[username];
+
+        if (Object.keys(incUpdate).length === 0) return null;
+
+        return {
+            updateOne: {
+                filter: { username },
+                update: { $inc: incUpdate }
+            }
+        };
+    }).filter(Boolean);
+
+    if (bulkUserOps.length > 0) {
+        await usersCollection.bulkWrite(bulkUserOps);
+    }
     
-    await gamesCollection.updateOne({ _id: new ObjectId(game._id) }, { $set: { votes: finalVotes, status: 'active' }, $unset: { revealAt: "" } });
-    console.log(`Votación finalizada para el juego: ${game.name}`);
+    // 4. Finalizar el estado del juego
+    await gamesCollection.updateOne(
+        { _id: new ObjectId(game._id) },
+        { $set: { votes: finalVotes, status: 'active' }, $unset: { revealAt: "" } }
+    );
+    console.log(`Votación para "${game.name}" procesada.`);
 }
 
 // --- Función Principal ---
@@ -144,7 +160,7 @@ async function main() {
         apiRouter.get('/state', async (req, res) => {
             const expiredGames = await gamesCollection.find({ status: 'voting', revealAt: { $lte: new Date() } }).toArray();
             for (const game of expiredGames) {
-                await finalizeVotes(game);
+                await finalizeVotes(game._id);
             }
             const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
             const games = await gamesCollection.find({}).toArray();
@@ -164,15 +180,11 @@ async function main() {
             if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede nominar.' });
             const user = await usersCollection.findOne({ username: req.user.username });
             if (user.nominationCooldownUntil && new Date(user.nominationCooldownUntil) > new Date()) return res.status(403).json({ message: `Cooldown activo.` });
-            if (await gamesCollection.findOne({ nominatedBy: req.user.username, status: { $in: ['voting'] } })) return res.status(403).json({ message: 'Ya tienes una nominación en curso.' });
+            if (await gamesCollection.findOne({ nominatedBy: req.user.username, status: 'voting' })) return res.status(403).json({ message: 'Ya tienes una nominación en curso.' });
             
             await gamesCollection.insertOne({ 
-                name: req.body.name, 
-                status: 'voting',
-                votes: {}, 
-                totalScore: 0, 
-                nominatedBy: req.user.username,
-                revealAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
+                name: req.body.name, status: 'voting', votes: {}, totalScore: 0, 
+                nominatedBy: req.user.username, revealAt: new Date(Date.now() + 24 * 60 * 60 * 1000)
             });
             res.status(201).json({ message: 'Juego nominado. La votación ha comenzado.' });
         });
@@ -192,6 +204,7 @@ async function main() {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (game.status !== 'voting') return res.status(400).json({ message: 'La votación para este juego ha terminado.' });
 
+            // Solo se guarda el voto, no se calculan efectos aquí
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { [`votes.${req.user.username}`]: vote } });
             res.status(200).json({ message: 'Voto registrado.' });
         });
@@ -210,10 +223,9 @@ async function main() {
             res.status(200).json({ message: 'Juego vetado con éxito.' });
         });
         
-        // --- RUTAS DE ADMIN ---
+        // --- RUTAS DE ADMINISTRADOR ---
         apiRouter.post('/admin/games/:id/reveal', isAdmin, async (req, res) => {
-            const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
-            await finalizeVotes(game);
+            await finalizeVotes(req.params.id);
             res.status(200).json({ message: 'Votación finalizada por el admin.' });
         });
         
@@ -231,7 +243,7 @@ async function main() {
 
         apiRouter.post('/admin/update-stats', isAdmin, async (req, res) => {
             const { username, tokens, vetoes, prestige } = req.body;
-            await usersCollection.updateOne({ username }, { $set: { tokens: parseInt(tokens), vetoes: parseInt(vetoes), prestige: parseInt(prestige) }});
+            await usersCollection.updateOne({ username }, { $set: { tokens: parseInt(tokens), vetoes: parseInt(vetoes), prestige: parseFloat(prestige) }});
             res.status(200).json({ message: `Estadísticas de ${username} actualizadas.` });
         });
 
