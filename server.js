@@ -231,7 +231,6 @@ async function main() {
             res.status(200).json({ message: 'Nominación cancelada. Cooldown de 24h aplicado.' });
         });
 
-        // --- INICIO DE LA CORRECCIÓN ---
         apiRouter.post('/games/:id/vote', async (req, res) => {
             if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede votar.' });
             
@@ -239,7 +238,13 @@ async function main() {
             const { vote } = req.body;
             
             const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-            if (!game || game.status !== 'voting') return res.status(400).json({ message: 'La votación para este juego ha terminado.' });
+            
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Permitir el voto si el juego está en fase de 'voting' O 'active'.
+            if (!game || (game.status !== 'voting' && game.status !== 'active')) {
+                return res.status(400).json({ message: 'La votación para este juego ha terminado o está vetado.' });
+            }
+            // --- FIN DE LA CORRECCIÓN ---
 
             // Aplicar penalización si el voto se modifica
             const oldVote = game.votes[req.user.username];
@@ -251,16 +256,20 @@ async function main() {
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { [`votes.${req.user.username}`]: vote } });
             res.status(200).json({ message: 'Voto registrado.' }); // Responder inmediatamente al usuario
 
-            // Comprobar si la votación ha finalizado después de responder
-            const updatedGame = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-            const playerCount = await usersCollection.countDocuments({ username: { $ne: 'admin' } });
-            
-            if (Object.keys(updatedGame.votes).length >= playerCount) {
-                console.log(`[AUTO-FINALIZE] Todos los ${playerCount} jugadores han votado. Finalizando votación para "${updatedGame.name}".`);
-                await finalizeVotes(gameId);
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Solo comprobar para auto-finalizar si el juego estaba en fase de 'voting'.
+            if (game.status === 'voting') {
+                const updatedGame = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
+                const playerCount = await usersCollection.countDocuments({ username: { $ne: 'admin' } });
+                
+                if (Object.keys(updatedGame.votes).length >= playerCount) {
+                    console.log(`[AUTO-FINALIZE] Todos los ${playerCount} jugadores han votado. Finalizando votación para "${updatedGame.name}".`);
+                    // Se usa un setTimeout para dar un pequeño margen y evitar condiciones de carrera.
+                    setTimeout(() => finalizeVotes(gameId), 500);
+                }
             }
+            // --- FIN DE LA CORRECCIÓN ---
         });
-        // --- FIN DE LA CORRECCIÓN ---
         
         apiRouter.post('/games/:id/veto', async (req, res) => {
             const vetoer = await usersCollection.findOne({ username: req.user.username });
