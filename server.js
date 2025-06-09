@@ -235,40 +235,62 @@ async function main() {
             if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede votar.' });
             
             const gameId = req.params.id;
-            const { vote } = req.body;
+            const newVote = req.body.vote;
             
             const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
             
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Permitir el voto si el juego está en fase de 'voting' O 'active'.
             if (!game || (game.status !== 'voting' && game.status !== 'active')) {
                 return res.status(400).json({ message: 'La votación para este juego ha terminado o está vetado.' });
             }
-            // --- FIN DE LA CORRECCIÓN ---
-
-            // Aplicar penalización si el voto se modifica
-            const oldVote = game.votes[req.user.username];
-            if (oldVote !== undefined && oldVote !== vote) {
-                await usersCollection.updateOne({ username: req.user.username }, { $inc: { prestige: -1 }});
-            }
             
-            // Registrar el nuevo voto
-            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { [`votes.${req.user.username}`]: vote } });
-            res.status(200).json({ message: 'Voto registrado.' }); // Responder inmediatamente al usuario
+            const oldVote = game.votes[req.user.username];
+
+            // Si el voto no ha cambiado, no hacer nada.
+            if (oldVote === newVote) {
+                return res.status(200).json({ message: 'El voto no ha cambiado.' });
+            }
 
             // --- INICIO DE LA CORRECCIÓN ---
-            // Solo comprobar para auto-finalizar si el juego estaba en fase de 'voting'.
+            // Calcular el cambio neto de tokens y prestigio
+            let prestigeChange = 0;
+            let tokenChange = 0;
+
+            if (oldVote !== undefined) {
+                // Penalización de prestigio por cambiar CUALQUIER voto
+                prestigeChange -= 1;
+
+                // Revertir el efecto del voto ANTERIOR en los tokens
+                if (oldVote === 3) tokenChange += 1; // Devolver token
+                if (oldVote === 0) tokenChange -= 1; // Retirar token ganado
+            }
+            
+            // Aplicar el efecto del voto NUEVO en los tokens
+            if (newVote === 3) tokenChange -= 1; // Cobrar token
+            if (newVote === 0) tokenChange += 1; // Otorgar token
+
+            // Aplicar cambios en las estadísticas del jugador si los hay
+            if (prestigeChange !== 0 || tokenChange !== 0) {
+                await usersCollection.updateOne(
+                    { username: req.user.username },
+                    { $inc: { prestige: prestigeChange, tokens: tokenChange } }
+                );
+            }
+            // --- FIN DE LA CORRECCIÓN ---
+            
+            // Registrar el nuevo voto en el juego
+            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { [`votes.${req.user.username}`]: newVote } });
+            res.status(200).json({ message: 'Voto registrado.' });
+
+            // Comprobar para auto-finalizar si el juego estaba en fase de 'voting'
             if (game.status === 'voting') {
                 const updatedGame = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
                 const playerCount = await usersCollection.countDocuments({ username: { $ne: 'admin' } });
                 
                 if (Object.keys(updatedGame.votes).length >= playerCount) {
                     console.log(`[AUTO-FINALIZE] Todos los ${playerCount} jugadores han votado. Finalizando votación para "${updatedGame.name}".`);
-                    // Se usa un setTimeout para dar un pequeño margen y evitar condiciones de carrera.
                     setTimeout(() => finalizeVotes(gameId), 500);
                 }
             }
-            // --- FIN DE LA CORRECCIÓN ---
         });
         
         apiRouter.post('/games/:id/veto', async (req, res) => {
