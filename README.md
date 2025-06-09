@@ -42,7 +42,7 @@ El Prestigio es una puntuación de carrera que mide tu reputación y buen hacer.
 ### El Voto Sellado
 Para eliminar el "voto parásito" y forzar la honestidad, las votaciones son secretas.
 1.  **Inicio:** Al nominar un juego, se inicia un **temporizador de 24 horas**.
-2.  **Votación:** Durante ese tiempo, los jugadores emiten su voto. Solo podrás ver *quién* ha votado, pero no el valor (aparecerá como "?"). El admin sí puede ver los votos.
+2.  **Votación:** Durante ese tiempo, los jugadores emiten su voto. Solo podrás ver *quién* ha votado, pero no el valor (aparecerá como "?").
 3.  **Revelación:** Pasadas las 24h (o si el admin lo fuerza), todos los votos se revelan y se calculan los efectos.
 4.  **Penalización por Inacción:** Los jugadores que no voten en el plazo sufrirán una penalización de **-1 de Prestigio** y su voto se registrará automáticamente como un "0".
 

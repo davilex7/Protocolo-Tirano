@@ -24,6 +24,12 @@ let db, usersCollection, gamesCollection;
 
 // --- Middleware de Autenticación y Admin ---
 const authenticateToken = (req, res, next) => {
+
+    // Permite que las peticiones de sondeo (preflight) OPTIONS pasen sin autenticación.
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+    
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (token == null) return res.sendStatus(401);
