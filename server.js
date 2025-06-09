@@ -57,11 +57,10 @@ async function finalizeVotes(gameId) {
 
     console.log(`[EXEC] Iniciando finalización para: "${game.name}"`);
 
-    // --- CORRECCIÓN ---
-    // Se obtiene primero a TODOS los usuarios y luego se filtra el admin.
-    // Esto hace que la recuperación de datos sea más robusta.
+    // --- CORRECCIÓN FINAL ---
+    // Se filtra por nombre de usuario para garantizar la correcta identificación de los jugadores.
     const allUsers = await usersCollection.find({}).toArray();
-    const allActivePlayers = allUsers.filter(u => u.isAdmin === false);
+    const allActivePlayers = allUsers.filter(u => u.username !== 'admin');
     
     console.log(`[DEBUG] Total de usuarios en BD: ${allUsers.length}. Jugadores activos detectados: ${allActivePlayers.length}.`);
 
