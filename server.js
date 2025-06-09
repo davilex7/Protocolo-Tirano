@@ -53,50 +53,44 @@ async function finalizeVotes(gameId) {
     const votersUsernames = Object.keys(game.votes);
     const nonVotersUsernames = allPlayerUsernames.filter(u => !votersUsernames.includes(u));
     
-    // 1. Asignar voto '0' y penalizar a los que no votaron
     const finalVotes = { ...game.votes };
-    if (nonVotersUsernames.length > 0) {
-        await usersCollection.updateMany(
-            { username: { $in: nonVotersUsernames } },
-            { $inc: { prestige: -1 } } // Penalización por inacción
-        );
-        nonVotersUsernames.forEach(username => {
-            finalVotes[username] = 0; // Se les asigna un 0
-        });
-    }
     
-    // 2. Calcular todos los cambios de Tokens y Prestigio basados en los votos finales
-    const tokenChanges = {};
-    const prestigeChanges = {};
+    // 1. Calcular todos los cambios de Tokens y Prestigio
+    const changes = {};
 
+    allPlayerUsernames.forEach(username => {
+        changes[username] = { tokens: 0, prestige: 0 };
+    });
+
+    // Penalizar a los que no votaron
+    nonVotersUsernames.forEach(username => {
+        finalVotes[username] = 0;
+        changes[username].prestige -= 1; // Penalización por inacción
+    });
+    
+    // Calcular efectos para todos los votos finales
     for (const username in finalVotes) {
         const vote = finalVotes[username];
-        tokenChanges[username] = tokenChanges[username] || 0;
-        prestigeChanges[username] = prestigeChanges[username] || 0;
-        
-        if (vote === 3) tokenChanges[username] -= 1;
-        if (vote === 0) tokenChanges[username] += 1; // Todos los que terminan con 0 ganan un token
-        if (vote === 1) prestigeChanges[username] += 0.5;
+        if (vote === 3) changes[username].tokens -= 1;
+        if (vote === 0) changes[username].tokens += 1;
+        if (vote === 1) changes[username].prestige += 0.5;
     }
     
     // Otorgar prestigio por el primer '3' externo
-    const externalThrees = Object.entries(finalVotes).filter(([user, vote]) => vote === 3 && user !== game.nominatedBy);
-    if (externalThrees.length > 0 && game.nominatedBy) {
-        prestigeChanges[game.nominatedBy] = (prestigeChanges[game.nominatedBy] || 0) + 1;
+    if (game.nominatedBy) {
+        const externalThrees = Object.entries(finalVotes).filter(([user, vote]) => vote === 3 && user !== game.nominatedBy);
+        if (externalThrees.length > 0) {
+            changes[game.nominatedBy].prestige += 1;
+        }
     }
 
-    // 3. Aplicar cambios a la base de datos en una sola operación por cada usuario
-    const bulkUserOps = Object.keys(finalVotes).map(username => {
-        const incUpdate = {};
-        if (tokenChanges[username]) incUpdate.tokens = tokenChanges[username];
-        if (prestigeChanges[username]) incUpdate.prestige = prestigeChanges[username];
-
-        if (Object.keys(incUpdate).length === 0) return null;
-
+    // 2. Aplicar cambios a la base de datos
+    const bulkUserOps = Object.entries(changes).map(([username, change]) => {
+        if (change.tokens === 0 && change.prestige === 0) return null;
         return {
             updateOne: {
                 filter: { username },
-                update: { $inc: incUpdate }
+                update: { $inc: { tokens: change.tokens, prestige: change.prestige } }
             }
         };
     }).filter(Boolean);
@@ -105,13 +99,14 @@ async function finalizeVotes(gameId) {
         await usersCollection.bulkWrite(bulkUserOps);
     }
     
-    // 4. Finalizar el estado del juego
+    // 3. Finalizar el estado del juego
     await gamesCollection.updateOne(
         { _id: new ObjectId(game._id) },
         { $set: { votes: finalVotes, status: 'active' }, $unset: { revealAt: "" } }
     );
     console.log(`Votación para "${game.name}" procesada.`);
 }
+
 
 // --- Función Principal ---
 async function main() {
@@ -204,7 +199,12 @@ async function main() {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (game.status !== 'voting') return res.status(400).json({ message: 'La votación para este juego ha terminado.' });
 
-            // Solo se guarda el voto, no se calculan efectos aquí
+            const oldVote = game.votes[req.user.username];
+            if (oldVote !== undefined) {
+                // Penalización por modificar voto
+                await usersCollection.updateOne({ username: req.user.username }, { $inc: { prestige: -1 }});
+            }
+            
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { [`votes.${req.user.username}`]: vote } });
             res.status(200).json({ message: 'Voto registrado.' });
         });
