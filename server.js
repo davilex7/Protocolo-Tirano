@@ -24,7 +24,6 @@ let db, usersCollection, gamesCollection;
 
 // --- Middleware de Autenticación y Admin ---
 const authenticateToken = (req, res, next) => {
-
     // Permite que las peticiones de sondeo (preflight) OPTIONS pasen sin autenticación.
     if (req.method === 'OPTIONS') {
         return next();
@@ -56,52 +55,59 @@ async function finalizeVotes(gameId) {
         return;
     }
 
-    console.log(`Finalizando votación para el juego: ${game.name}`);
+    console.log(`[INICIO] Finalizando votación para el juego: "${game.name}" (${game._id})`);
 
-    const allPlayers = await usersCollection.find({ isAdmin: false }).toArray();
-    const allPlayerUsernames = allPlayers.map(p => p.username);
-
+    const allActivePlayers = await usersCollection.find({ isAdmin: false }).toArray();
+    const allActiveUsernames = allActivePlayers.map(p => p.username);
+    
     // Objeto para acumular todos los cambios de estadísticas
     const changes = {};
-    allPlayerUsernames.forEach(username => {
+    allActiveUsernames.forEach(username => {
         changes[username] = { tokens: 0, prestige: 0 };
     });
 
-    const finalVotes = { ...game.votes }; // Empezamos con los votos ya emitidos
+    const finalVotes = { ...game.votes };
 
-    // 1. Procesar a los jugadores que SÍ votaron
-    for (const voterUsername in game.votes) {
-        if (allPlayerUsernames.includes(voterUsername)) {
-            const vote = game.votes[voterUsername];
-            if (vote === 3) changes[voterUsername].tokens -= 1;
-            if (vote === 0) changes[voterUsername].tokens += 1;
-            if (vote === 1) changes[voterUsername].prestige += 0.5;
-        } else {
-            console.log(`El votante '${voterUsername}' ya no es un jugador activo. Su voto será ignorado en los cálculos.`);
+    // 1. Identificar a los jugadores que NO votaron y aplicarles la penalización por INACCIÓN.
+    const votedUsernames = Object.keys(game.votes);
+    const nonVotersUsernames = allActiveUsernames.filter(u => !votedUsernames.includes(u));
+    
+    nonVotersUsernames.forEach(username => {
+        console.log(` -> Jugador '${username}' no votó. Penalización por inacción: -1 Prestigio.`);
+        changes[username].prestige -= 1; // Penalización por inacción
+        finalVotes[username] = 0; // Su voto se convierte en 0
+    });
+
+    // 2. Iterar sobre la lista de votos FINAL (incluyendo los de los no-votantes) y aplicar las consecuencias de cada VOTO.
+    for (const username in finalVotes) {
+        // Asegurarse de que el votante sigue siendo un jugador activo
+        if (allActiveUsernames.includes(username)) {
+            const vote = finalVotes[username];
+            switch (vote) {
+                case 3:
+                    console.log(` -> Voto '3' de '${username}'. Consecuencia: -1 Token.`);
+                    changes[username].tokens -= 1;
+                    break;
+                case 1:
+                    console.log(` -> Voto '1' de '${username}'. Consecuencia: +0.5 Prestigio.`);
+                    changes[username].prestige += 0.5;
+                    break;
+                case 0:
+                    console.log(` -> Voto '0' de '${username}'. Consecuencia: +1 Token.`);
+                    changes[username].tokens += 1;
+                    break;
+                // El voto '2' no tiene consecuencias directas.
+            }
         }
     }
 
-    // 2. Procesar a los jugadores que NO votaron
-    const votedUsernames = Object.keys(game.votes);
-    const nonVotersUsernames = allPlayerUsernames.filter(u => !votedUsernames.includes(u));
-
-    nonVotersUsernames.forEach(username => {
-        console.log(`Jugador '${username}' no votó. Aplicando penalización.`);
-        // Penalización por inacción
-        changes[username].prestige -= 1;
-        // Consecuencia del voto automático '0'
-        changes[username].tokens += 1;
-        // Registrar su voto como 0 para el registro histórico
-        finalVotes[username] = 0;
-    });
-
     // 3. Otorgar prestigio al nominador si recibió un '3' de otro jugador
-    if (game.nominatedBy && allPlayerUsernames.includes(game.nominatedBy)) {
+    if (game.nominatedBy && allActiveUsernames.includes(game.nominatedBy)) {
         const hasExternalThree = Object.entries(finalVotes).some(
-            ([user, vote]) => vote === 3 && user !== game.nominatedBy && allPlayerUsernames.includes(user)
+            ([user, vote]) => vote === 3 && user !== game.nominatedBy && allActiveUsernames.includes(user)
         );
         if (hasExternalThree) {
-            console.log(`Otorgando prestigio al nominador '${game.nominatedBy}'.`);
+            console.log(` -> Juego nominado por '${game.nominatedBy}' recibió apoyo externo. Recompensa: +1 Prestigio.`);
             changes[game.nominatedBy].prestige += 1;
         }
     }
@@ -117,21 +123,20 @@ async function finalizeVotes(gameId) {
         }));
 
     if (bulkUserOps.length > 0) {
-        console.log("Aplicando cambios de estadísticas:", JSON.stringify(bulkUserOps, null, 2));
+        console.log(" -> Aplicando cambios de estadísticas en la BD:", JSON.stringify(bulkUserOps, null, 2));
         await usersCollection.bulkWrite(bulkUserOps);
     } else {
-        console.log("No hay cambios en las estadísticas de los jugadores para aplicar.");
+        console.log(" -> No hay cambios en las estadísticas de los jugadores para aplicar.");
     }
 
     // 5. Finalizar el estado del juego
-    console.log(`Actualizando estado del juego a 'active' con los votos finales:`, JSON.stringify(finalVotes));
+    console.log(` -> Actualizando estado del juego a 'active' con los votos finales:`, JSON.stringify(finalVotes));
     await gamesCollection.updateOne(
         { _id: new ObjectId(game._id) },
         { $set: { votes: finalVotes, status: 'active' }, $unset: { revealAt: "" } }
     );
-    console.log(`Votación para "${game.name}" procesada y finalizada.`);
+    console.log(`[FIN] Votación para "${game.name}" procesada y finalizada.`);
 }
-
 
 // --- Función Principal ---
 async function main() {
