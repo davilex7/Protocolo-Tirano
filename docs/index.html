@@ -137,14 +137,18 @@
         function renderPlayerRanking() {
             const el = document.getElementById('player-ranking');
             el.innerHTML = '';
-            // La puntuación ahora viene pre-calculada del backend
             const sortedUsers = [...state.users].filter(u => u.username !== 'admin').sort((a,b) => (b.totalVersatilityScore || 0) - (a.totalVersatilityScore || 0));
             
             sortedUsers.forEach((user, index) => {
                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
                 const card = document.createElement('div');
                 card.className = 'p-4 rounded-lg bg-gray-800';
-                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div><div class="text-2xl font-bold text-blue-400">${user.totalVersatilityScore || 0}</div></div><div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center"><div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div><div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div><div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div></div></div>`;
+                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${user.name}</span></div><div class="text-2xl font-bold text-blue-400">${user.totalVersatilityScore || 0}</div></div>
+                <div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center">
+                    <div><div class="font-bold text-lg text-yellow-400">${user.tokens}</div><div class="text-xs text-gray-400">Tokens</div></div>
+                    <div><div class="font-bold text-lg text-red-400">${user.vetoes}</div><div class="text-xs text-gray-400">Vetos</div></div>
+                    <div><div class="font-bold text-lg text-purple-400">${user.prestige}</div><div class="text-xs text-gray-400">Prestigio</div></div>
+                </div>`;
                 el.appendChild(card);
             });
         }
@@ -152,7 +156,6 @@
         function renderGameList() {
             const el = document.getElementById('game-list');
             el.innerHTML = '';
-            // Ordenar por estado, y luego por puntuación total descendente
             const sortedGames = [...state.games].sort((a, b) => {
                 const statusOrder = { 'voting': 0, 'active': 1, 'vetoed': 2 };
                 if (statusOrder[a.status] !== statusOrder[b.status]) {
@@ -161,7 +164,7 @@
                 if (a.status === 'active') {
                     return (b.totalScore || 0) - (a.totalScore || 0);
                 }
-                return 0; // Mantener orden original para otros estados
+                return 0;
             });
 
             if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos en la lista.</p>'; return; }
@@ -178,7 +181,6 @@
                 card.innerHTML = `<div class="flex justify-between items-center flex-wrap gap-2 mb-3"><div><span class="text-xl font-bold text-white">${game.name}</span></div><div class="flex items-center gap-2"></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
                 const buttonsDiv = card.querySelector('.flex.items-center.gap-2');
                 
-                // --- INICIO DE LA CORRECCIÓN ---
                 if (state.currentUser.isAdmin) {
                     const revealBtn = document.createElement('button');
                     revealBtn.className = 'btn btn-warning btn-sm';
@@ -192,7 +194,6 @@
                     voteBtn.onclick = () => openVoteModal(game._id);
                     buttonsDiv.appendChild(voteBtn);
                 }
-                // --- FIN DE LA CORRECCIÓN ---
                 
                 const votesContainer = card.querySelector('.flex.justify-around');
                 state.users.filter(u => u.username !== 'admin').forEach(p => {
@@ -211,7 +212,7 @@
                 card.innerHTML = `<div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${game.name}</span><span class="text-sm font-semibold text-red-400"></span></div>`;
                 card.querySelector('.text-sm').textContent = `VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}`;
             
-            } else { // active
+            } else { 
                 card.className = `p-4 rounded-lg bg-gray-800 ${Object.values(game.votes).includes(0) ? 'border-2 border-red-600' : ''}`;
                 card.innerHTML = `<div class="flex justify-between items-center mb-3 flex-wrap gap-2">
                                       <h4 class="text-xl font-bold text-white flex-grow">${game.name}</h4>
@@ -269,11 +270,10 @@
             const voteForm = document.getElementById('vote-form');
             voteForm.innerHTML = ''; voteForm.dataset.gameid = gameId;
 
-            let tokenBalance = user.tokens;
-            if (currentVote === 3) tokenBalance += 1; // Simular devolución para la UI
-            const canAfford3 = tokenBalance >= 1;
+            const availableTokens = (user.tokens || 0) - (user.committedTokens || 0);
+            const canAfford3 = availableTokens >= 1;
             
-            voteForm.innerHTML = `<select id="user-vote-select" class="w-full bg-gray-700 rounded-lg p-2 text-white"><option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad) - Cuesta 1 Token ${!canAfford3 ? `(Tienes ${user.tokens})`: ''}</option><option value="2">2 (Aceptable)</option><option value="1">1 (Tolerable)</option><option value="0">0 (Rechazo)</option></select>`;
+            voteForm.innerHTML = `<select id="user-vote-select" class="w-full bg-gray-700 rounded-lg p-2 text-white"><option value="3" ${!canAfford3 ? 'disabled' : ''}>3 (Prioridad) - Cuesta 1 Token ${!canAfford3 ? `(Disponibles: ${availableTokens})`: ''}</option><option value="2">2 (Aceptable)</option><option value="1">1 (Tolerable)</option><option value="0">0 (Rechazo)</option></select>`;
             
             document.getElementById('user-vote-select').value = (currentVote !== undefined) ? currentVote : "2";
             modals.vote.classList.add('is-open');
@@ -291,7 +291,15 @@
             state.users.filter(u => u.username !== 'admin').forEach(user => {
                  const userCard = document.createElement('div');
                  userCard.className = 'p-3 bg-gray-800 rounded-lg';
-                 userCard.innerHTML = `<p class="font-bold text-white mb-2">${user.name.replace(/</g, "&lt;")} (${user.username.replace(/</g, "&lt;")})</p><form class="grid grid-cols-1 md:grid-cols-2 gap-4" onsubmit="handleAdminUpdateStats(event, '${user.username}')"><div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div><div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" step="0.5" class="w-full bg-gray-700 p-1 rounded"></div><div class="flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div></form><form class="mt-4" onsubmit="handleAdminResetPassword(event, '${user.username}')"><label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div></form>`;
+                 userCard.innerHTML = `<p class="font-bold text-white mb-2">${user.name.replace(/</g, "&lt;")} (${user.username.replace(/</g, "&lt;")})</p>
+                 <form class="grid grid-cols-2 md:grid-cols-4 gap-4" onsubmit="handleAdminUpdateStats(event, '${user.username}')">
+                    <div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div>
+                    <div><label class="text-xs">Compr.</label><input type="number" name="committedTokens" value="${user.committedTokens || 0}" class="w-full bg-gray-700 p-1 rounded"></div>
+                    <div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div>
+                    <div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" step="0.1" class="w-full bg-gray-700 p-1 rounded"></div>
+                    <div class="col-span-4 flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div>
+                 </form>
+                 <form class="mt-4" onsubmit="handleAdminResetPassword(event, '${user.username}')"><label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div></form>`;
                  userListEl.appendChild(userCard);
             });
 
@@ -349,9 +357,7 @@
                 openAdminModal();
             } catch (error) { alert(error.message); }
         }
-
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Se añade la función para el botón del admin
+        
         async function handleAdminFinalizeVote(gameId, gameName) {
             if (!confirm(`¿Seguro que quieres forzar la finalización de la votación para "${gameName}"?`)) return;
             try {
@@ -362,12 +368,16 @@
                 alert(error.message);
             }
         }
-        // --- FIN DE LA CORRECCIÓN ---
 
         async function handleAdminUpdateStats(e, username) {
             e.preventDefault();
             const form = e.target;
-            const stats = { tokens: form.tokens.value, vetoes: form.vetoes.value, prestige: form.prestige.value };
+            const stats = { 
+                tokens: form.tokens.value, 
+                vetoes: form.vetoes.value, 
+                prestige: form.prestige.value,
+                committedTokens: form.committedTokens.value
+            };
             try {
                 await apiCall('/api/admin/update-stats', 'POST', { username, ...stats });
                 alert(`Estadísticas de ${username} actualizadas.`); 
@@ -397,7 +407,7 @@
         }
         
         async function handleVeto(gameId) {
-            if (!confirm("¿ESTÁS SEGURO? Esta acción es irreversible, gastará tu Veto y aplicará una penalización de Prestigio.")) return;
+            if (!confirm("¿ESTÁS SEGURO? Esta acción es irreversible y gastará tu Veto.")) return;
             try { 
                 await apiCall(`/api/games/${gameId}/veto`, 'POST'); 
                 alert('Juego vetado.'); 

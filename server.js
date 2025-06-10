@@ -1,6 +1,6 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
-const cors = require('cors');
+const cors =require('cors');
 const bcrypt = require('bcrypt');
 const jwt =require('jsonwebtoken');
 const path = require('path');
@@ -24,9 +24,7 @@ let db, usersCollection, gamesCollection;
 
 // --- Middleware de Autenticación y Admin ---
 const authenticateToken = (req, res, next) => {
-    if (req.method === 'OPTIONS') {
-        return next();
-    }
+    if (req.method === 'OPTIONS') return next();
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (token == null) return res.sendStatus(401);
@@ -47,21 +45,13 @@ const isAdmin = async (req, res, next) => {
 
 // --- Lógica de Recálculo y Finalización ---
 
-// Nueva función para calcular la puntuación de un juego individual
 async function updateGameScore(gameId) {
     const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
     if (!game) return;
-
     const totalScore = Object.values(game.votes).reduce((sum, vote) => sum + vote, 0);
-    
-    await gamesCollection.updateOne(
-        { _id: new ObjectId(gameId) },
-        { $set: { totalScore: totalScore } }
-    );
-    console.log(`[SCORE UPDATE] Puntuación para "${game.name}" actualizada a: ${totalScore}`);
+    await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { totalScore: totalScore } });
 }
 
-// Recalcula la puntuación de Versatilidad para TODOS los jugadores
 async function recalculateAllScores() {
     console.log('[RECALC] Iniciando recálculo de todas las puntuaciones de Versatilidad.');
     const allActivePlayers = await usersCollection.find({ username: { $ne: 'admin' } }).toArray();
@@ -72,7 +62,6 @@ async function recalculateAllScores() {
         allActiveGames.forEach(game => {
             if (game.votes.hasOwnProperty(player.username)) {
                 const voteValue = game.votes[player.username];
-                // Fórmula de Valoración Continua
                 const scoreForGame = voteValue * (1 + (player.prestige || 0) / 10);
                 totalVersatilityScore += scoreForGame;
             }
@@ -88,29 +77,66 @@ async function recalculateAllScores() {
 
     if (bulkUserOps.length > 0) {
         await usersCollection.bulkWrite(bulkUserOps);
-        console.log(`[RECALC] Puntuaciones de Versatilidad actualizadas para ${bulkUserOps.length} jugadores.`);
     }
 }
 
-// Finaliza la votación para un juego
 async function finalizeVotes(gameId) {
     const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-    if (!game || game.status !== 'voting') {
-        return;
-    }
+    if (!game || game.status !== 'voting') return;
 
     console.log(`[FINALIZE] Finalizando votación para: "${game.name}"`);
-    
-    // El juego ahora está activo
-    await gamesCollection.updateOne(
-        { _id: new ObjectId(game._id) },
-        { $set: { status: 'active' }, $unset: { revealAt: "" } }
-    );
-    
-    // Asegurarse de que la puntuación del juego esté calculada
-    await updateGameScore(gameId);
 
-    // Como el estado de un juego ha cambiado, se recalcula todo
+    const playerUpdates = {};
+    const playersWithFragmentChanges = new Set();
+
+    Object.keys(game.votes).forEach(username => {
+        playerUpdates[username] = { prestige: 0, tokens: 0, committedTokens: 0, tokenFragments: 0 };
+    });
+    
+    if (game.changeLog) {
+        for (const username in game.changeLog) {
+            if (playerUpdates[username]) playerUpdates[username].prestige -= game.changeLog[username];
+        }
+    }
+
+    for (const username in game.votes) {
+        const vote = game.votes[username];
+        if (playerUpdates[username]) {
+            if (vote === 0) { playerUpdates[username].tokens += 1; playerUpdates[username].prestige -= 0.5; }
+            if (vote === 1) { playerUpdates[username].prestige += 0.5; }
+            if (vote === 2) { playerUpdates[username].prestige += 0.1; playerUpdates[username].tokenFragments += 1; playersWithFragmentChanges.add(username); }
+            if (vote === 3) { playerUpdates[username].tokens -= 1; playerUpdates[username].committedTokens -= 1; }
+        }
+    }
+
+    const bulkUserOps = Object.entries(playerUpdates).map(([username, changes]) => ({
+        updateOne: { filter: { username: username }, update: { $inc: { ...changes } } }
+    }));
+
+    if (bulkUserOps.length > 0) {
+        await usersCollection.bulkWrite(bulkUserOps);
+    }
+    
+    if (playersWithFragmentChanges.size > 0) {
+        const usersToCheck = await usersCollection.find({ username: { $in: [...playersWithFragmentChanges] } }).toArray();
+        const conversionOps = [];
+        usersToCheck.forEach(user => {
+            if (user.tokenFragments >= 3) {
+                const newTokens = Math.floor(user.tokenFragments / 3);
+                const remainingFragments = user.tokenFragments % 3;
+                conversionOps.push({
+                    updateOne: {
+                        filter: { username: user.username },
+                        update: { $inc: { tokens: newTokens }, $set: { tokenFragments: remainingFragments } }
+                    }
+                });
+            }
+        });
+        if (conversionOps.length > 0) await usersCollection.bulkWrite(conversionOps);
+    }
+
+    await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { status: 'active' }, $unset: { changeLog: "" } });
+    await updateGameScore(gameId);
     await recalculateAllScores();
     console.log(`[FINALIZE] Votación para "${game.name}" finalizada. Recálculo completado.`);
 }
@@ -124,7 +150,6 @@ async function main() {
         usersCollection = db.collection('users');
         gamesCollection = db.collection('games');
 
-        // Inicialización de usuarios
         const initialUsers = [
             { username: 'admin', password: 'adminpassword', name: 'Admin', isAdmin: true },
             { username: 'david', password: 'david123', name: 'David', isAdmin: false },
@@ -139,13 +164,12 @@ async function main() {
                 await usersCollection.insertOne({
                     username: userData.username, password: hashedPassword, name: userData.name,
                     isAdmin: userData.isAdmin, tokens: 3, vetoes: 1, prestige: 0,
-                    totalVersatilityScore: 0 // Nuevo campo
+                    committedTokens: 0, tokenFragments: 0, totalVersatilityScore: 0
                 });
             }
         }
         console.log("Verificación de usuarios completada.");
 
-        // --- Router de la API ---
         const apiRouter = express.Router();
         
         apiRouter.post('/login', async (req, res) => {
@@ -158,14 +182,12 @@ async function main() {
         
         apiRouter.use(authenticateToken);
 
-        // --- RUTAS AUTENTICADAS ---
         apiRouter.get('/state', async (req, res) => {
             try {
                 const users = await usersCollection.find({}, { projection: { password: 0 } }).toArray();
                 const games = await gamesCollection.find({}).toArray();
                 res.json({ users, games, currentUser: req.user });
             } catch (error) {
-                console.error("Error en /api/state:", error);
                 res.status(500).json({ message: "Error interno del servidor."});
             }
         });
@@ -179,15 +201,10 @@ async function main() {
             res.status(200).json({ message: 'Contraseña actualizada.' });
         });
         
-        // Ruta simplificada para añadir juegos
         apiRouter.post('/games', async (req, res) => {
             if (req.user.isAdmin) return res.status(403).json({ message: 'El admin no puede añadir juegos.' });
-            
             await gamesCollection.insertOne({ 
-                name: req.body.name, 
-                status: 'voting', // Empieza directamente en votación
-                votes: {},
-                totalScore: 0
+                name: req.body.name, status: 'voting', votes: {}, totalScore: 0, changeLog: {} 
             });
             res.status(201).json({ message: 'Juego añadido. La votación ha comenzado.' });
         });
@@ -199,7 +216,6 @@ async function main() {
             const newVote = req.body.vote;
             
             const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
-            
             if (!game || (game.status !== 'voting' && game.status !== 'active')) {
                 return res.status(400).json({ message: 'La votación para este juego ha terminado o está vetado.' });
             }
@@ -207,44 +223,47 @@ async function main() {
             const oldVote = game.votes[req.user.username];
             if (oldVote === newVote) return res.status(200).json({ message: 'El voto no ha cambiado.' });
 
-            let prestigeChange = 0;
-            let tokenChange = 0;
+            const player = await usersCollection.findOne({ username: req.user.username });
+            const availableTokens = (player.tokens || 0) - (player.committedTokens || 0);
 
+            if (newVote === 3 && availableTokens < 1) {
+                return res.status(403).json({ message: 'No tienes suficientes Tokens disponibles para votar 3.' });
+            }
+
+            let committedTokenChange = 0;
+            const gameUpdate = {};
+            
             if (oldVote !== undefined) {
-                prestigeChange -= 1; // Penalización por cambiar voto
-                if (oldVote === 0) tokenChange -= 1; // Retirar token
-                if (oldVote === 3) tokenChange += 1; // Devolver token
+                // Solo registrar cambio si el juego está en votación
+                if (game.status === 'voting') {
+                    gameUpdate[`$inc`] = { [`changeLog.${req.user.username}`]: 1 };
+                }
+                if (oldVote === 3) committedTokenChange = -1;
             }
-            if (newVote === 0) {
-                tokenChange += 1;
-                prestigeChange -= 0.5;
-            }
-            if (newVote === 1) prestigeChange += 0.5;
-            if (newVote === 3) tokenChange -= 1;
+            if (newVote === 3) committedTokenChange = 1;
 
-            if (prestigeChange !== 0 || tokenChange !== 0) {
-                await usersCollection.updateOne(
-                    { username: req.user.username },
-                    { $inc: { prestige: prestigeChange, tokens: tokenChange } }
-                );
+            if(committedTokenChange !== 0){
+                await usersCollection.updateOne({ username: req.user.username }, { $inc: { committedTokens: committedTokenChange } });
             }
+
+            gameUpdate[`$set`] = { [`votes.${req.user.username}`]: newVote };
+            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, gameUpdate);
             
-            await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { [`votes.${req.user.username}`]: newVote } });
-            
-            // Actualizar la puntuación del juego después de cada voto
-            await updateGameScore(gameId);
-            
-            // Recalcular puntuaciones después de un cambio que afecta al Prestigio
-            if (prestigeChange !== 0) {
+            // Si el juego ya está activo, las consecuencias son inmediatas y se recalcula todo
+            if (game.status === 'active') {
+                const prestigeChange = (newVote === 1 ? 0.5 : (oldVote === 1 ? -0.5 : 0)) + 
+                                     (newVote === 2 ? 0.1 : (oldVote === 2 ? -0.1 : 0)) + 
+                                     (newVote === 0 ? -0.5 : (oldVote === 0 ? 0.5 : 0)) -1;
+                
+                await usersCollection.updateOne({username: req.user.username}, {$inc: {prestige: prestigeChange}});
+                await updateGameScore(gameId);
                 await recalculateAllScores();
             }
 
-            // Comprobar si la votación ha finalizado
             const updatedGame = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
             const playerCount = await usersCollection.countDocuments({ username: { $ne: 'admin' } });
             
             if (updatedGame.status === 'voting' && Object.keys(updatedGame.votes).length >= playerCount) {
-                console.log(`[AUTO-FINALIZE] Todos los ${playerCount} jugadores han votado. Finalizando para "${updatedGame.name}".`);
                 await finalizeVotes(gameId);
             }
             
@@ -259,10 +278,7 @@ async function main() {
             if (!game || game.status !== 'active') return res.status(403).json({ message: 'Solo se pueden vetar juegos activos.' });
             if (game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Se elimina la penalización de prestigio
             await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1 } });
-            // --- FIN DE LA CORRECCIÓN ---
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'vetoed', vetoedBy: req.user.username } });
             
             res.status(200).json({ message: 'Juego vetado con éxito.' });
@@ -279,34 +295,38 @@ async function main() {
                     res.status(400).json({ message: 'Este juego no está en votación o no existe.' });
                 }
             } catch (error) {
-                console.error("Error al finalizar votación (admin):", error);
                 res.status(500).json({ message: "Error interno del servidor al finalizar la votación."});
             }
         });
         
         apiRouter.post('/admin/reset-password', isAdmin, async (req, res) => {
             const { username, newPassword } = req.body;
-            if (!username || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'Datos incompletos.' });
             await usersCollection.updateOne({ username }, { $set: { password: await bcrypt.hash(newPassword, 10) } });
             res.status(200).json({ message: `Contraseña de ${username} actualizada.` });
         });
 
         apiRouter.delete('/admin/games/:id', isAdmin, async (req, res) => {
             await gamesCollection.deleteOne({ _id: new ObjectId(req.params.id) });
-            await recalculateAllScores(); // El set de juegos activos ha cambiado
+            await recalculateAllScores(); 
             res.status(200).json({ message: 'Juego eliminado permanentemente.' });
         });
 
         apiRouter.post('/admin/update-stats', isAdmin, async (req, res) => {
-            const { username, tokens, vetoes, prestige } = req.body;
-            await usersCollection.updateOne({ username }, { $set: { tokens: parseInt(tokens), vetoes: parseInt(vetoes), prestige: parseFloat(prestige) }});
-            await recalculateAllScores(); // El Prestigio ha sido alterado manualmente
+            const { username, tokens, vetoes, prestige, committedTokens, tokenFragments } = req.body;
+            await usersCollection.updateOne({ username }, { $set: { 
+                tokens: parseInt(tokens), vetoes: parseInt(vetoes), 
+                prestige: parseFloat(prestige), committedTokens: parseInt(committedTokens || 0),
+                tokenFragments: parseInt(tokenFragments || 0)
+            }});
+            await recalculateAllScores();
             res.status(200).json({ message: `Estadísticas de ${username} actualizadas.` });
         });
 
         apiRouter.post('/admin/reset-all', isAdmin, async (req, res) => {
             await gamesCollection.deleteMany({});
-            await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: { tokens: 3, vetoes: 1, prestige: 0, totalVersatilityScore: 0 }});
+            await usersCollection.updateMany({ username: { $ne: 'admin' } }, { $set: { 
+                tokens: 3, vetoes: 1, prestige: 0, committedTokens: 0, tokenFragments: 0, totalVersatilityScore: 0 
+            }});
             res.status(200).json({ message: 'Aplicación reseteada a valores por defecto.' });
         });
         
@@ -314,18 +334,14 @@ async function main() {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.status !== 'vetoed') return res.status(400).json({ message: 'Este juego no está vetado.' });
             
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Se elimina la devolución de prestigio
             await usersCollection.updateOne({ username: game.vetoedBy }, { $inc: { vetoes: 1 } });
-            // --- FIN DE LA CORRECCIÓN ---
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'active' }, $unset: { vetoedBy: "" } });
             
-            await recalculateAllScores(); // El set de juegos activos ha cambiado
+            await recalculateAllScores(); 
             
             res.status(200).json({ message: `Veto levantado. ${game.vetoedBy} ha recuperado su Veto.` });
         });
         
-        // --- CONFIGURACIÓN DE RUTAS PRINCIPAL ---
         app.use('/api', apiRouter);
         app.use(express.static(path.join(__dirname, 'docs')));
         app.get('*', (req, res) => {
