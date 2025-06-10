@@ -259,19 +259,16 @@ async function main() {
             if (!game || game.status !== 'active') return res.status(403).json({ message: 'Solo se pueden vetar juegos activos.' });
             if (game.votes[req.user.username] !== 0) return res.status(403).json({ message: 'Debes haber votado 0 para poder vetar.' });
 
-            // El veto ahora solo afecta al que veta
-            await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1, prestige: -3 } });
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Se elimina la penalización de prestigio
+            await usersCollection.updateOne({ username: req.user.username }, { $inc: { vetoes: -1 } });
+            // --- FIN DE LA CORRECCIÓN ---
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'vetoed', vetoedBy: req.user.username } });
-            
-            await recalculateAllScores(); // Recalcular por cambio de Prestigio
             
             res.status(200).json({ message: 'Juego vetado con éxito.' });
         });
         
         // --- RUTAS DE ADMINISTRADOR ---
-
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Reintroducir la ruta para que el admin finalice la votación
         apiRouter.post('/admin/games/:id/reveal', isAdmin, async (req, res) => {
             try {
                 const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
@@ -286,7 +283,6 @@ async function main() {
                 res.status(500).json({ message: "Error interno del servidor al finalizar la votación."});
             }
         });
-        // --- FIN DE LA CORRECCIÓN ---
         
         apiRouter.post('/admin/reset-password', isAdmin, async (req, res) => {
             const { username, newPassword } = req.body;
@@ -318,11 +314,13 @@ async function main() {
             const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
             if (!game || game.status !== 'vetoed') return res.status(400).json({ message: 'Este juego no está vetado.' });
             
-            // Revertir el efecto del veto
-            await usersCollection.updateOne({ username: game.vetoedBy }, { $inc: { vetoes: 1, prestige: 3 } });
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Se elimina la devolución de prestigio
+            await usersCollection.updateOne({ username: game.vetoedBy }, { $inc: { vetoes: 1 } });
+            // --- FIN DE LA CORRECCIÓN ---
             await gamesCollection.updateOne({ _id: new ObjectId(req.params.id) }, { $set: { status: 'active' }, $unset: { vetoedBy: "" } });
             
-            await recalculateAllScores(); // El Prestigio y el set de juegos activos han cambiado
+            await recalculateAllScores(); // El set de juegos activos ha cambiado
             
             res.status(200).json({ message: `Veto levantado. ${game.vetoedBy} ha recuperado su Veto.` });
         });
