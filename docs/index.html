@@ -86,6 +86,29 @@
         let state = {};
         let modals = {};
 
+        // --- INICIO DE LA CORRECCIÓN DE SEGURIDAD ---
+        /**
+         * Sanitizes a string by converting special HTML characters into their entity equivalents.
+         * This prevents the browser from interpreting user-provided strings as HTML code (XSS protection).
+         * @param {string} str The string to sanitize.
+         * @returns {string} The sanitized string, safe to be inserted into innerHTML.
+         */
+        function sanitize(str) {
+            if (str === null || str === undefined) {
+                return '';
+            }
+            const text = String(str);
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, (m) => map[m]);
+        }
+        // --- FIN DE LA CORRECCIÓN DE SEGURIDAD ---
+
         async function apiCall(endpoint, method = 'GET', body = null) {
             const token = localStorage.getItem('accessToken');
             if (!token && endpoint !== '/api/login') {
@@ -116,8 +139,7 @@
         }
 
         function render() {
-            // VULNERABILITY FIX: Use textContent to prevent XSS
-            document.getElementById('current-user-name').textContent = `Conectado como: ${state.currentUser?.name}`;
+            document.getElementById('current-user-name').innerHTML = `Conectado como: ${sanitize(state.currentUser?.name)}`;
             renderPlayerRanking();
             renderGameList();
             renderAdminButton();
@@ -137,64 +159,26 @@
 
         function renderPlayerRanking() {
             const el = document.getElementById('player-ranking');
-            el.innerHTML = ''; // Clear previous content
+            el.innerHTML = '';
             const sortedUsers = [...state.users].filter(u => u.username !== 'admin').sort((a,b) => (b.totalVersatilityScore || 0) - (a.totalVersatilityScore || 0));
             
             sortedUsers.forEach((user, index) => {
                 const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
                 const card = document.createElement('div');
                 card.className = 'p-4 rounded-lg bg-gray-800';
-
-                // VULNERABILITY FIX: Create elements programmatically and use textContent
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'flex justify-between items-center';
-                
-                const playerInfoDiv = document.createElement('div');
-                playerInfoDiv.className = 'flex items-center';
-                
-                const medalSpan = document.createElement('span');
-                medalSpan.className = 'text-2xl w-8';
-                medalSpan.textContent = medal || '_';
-                
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'font-bold text-lg text-white';
-                nameSpan.textContent = user.name;
-                
-                playerInfoDiv.append(medalSpan, nameSpan);
-                
-                const scoreDiv = document.createElement('div');
-                scoreDiv.className = 'text-2xl font-bold text-blue-400';
-                scoreDiv.textContent = user.totalVersatilityScore || 0;
-                
-                headerDiv.append(playerInfoDiv, scoreDiv);
-                
-                const statsDiv = document.createElement('div');
-                statsDiv.className = 'mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center';
-                
-                const createStat = (value, label, colorClass) => {
-                    const statContainer = document.createElement('div');
-                    const valueDiv = document.createElement('div');
-                    valueDiv.className = `font-bold text-lg ${colorClass}`;
-                    valueDiv.textContent = value;
-                    const labelDiv = document.createElement('div');
-                    labelDiv.className = 'text-xs text-gray-400';
-                    labelDiv.textContent = label;
-                    statContainer.append(valueDiv, labelDiv);
-                    return statContainer;
-                };
-
-                statsDiv.appendChild(createStat(user.tokens, 'Tokens', 'text-yellow-400'));
-                statsDiv.appendChild(createStat(user.vetoes, 'Vetos', 'text-red-400'));
-                statsDiv.appendChild(createStat(user.prestige, 'Prestigio', 'text-purple-400'));
-                
-                card.append(headerDiv, statsDiv);
+                card.innerHTML = `<div class="flex justify-between items-center"><div class="flex items-center"><span class="text-2xl w-8">${medal || '_'}</span><span class="font-bold text-lg text-white">${sanitize(user.name)}</span></div><div class="text-2xl font-bold text-blue-400">${sanitize(user.totalVersatilityScore || 0)}</div></div>
+                <div class="mt-3 pt-3 border-t border-gray-700 grid grid-cols-3 text-center">
+                    <div><div class="font-bold text-lg text-yellow-400">${sanitize(user.tokens)}</div><div class="text-xs text-gray-400">Tokens</div></div>
+                    <div><div class="font-bold text-lg text-red-400">${sanitize(user.vetoes)}</div><div class="text-xs text-gray-400">Vetos</div></div>
+                    <div><div class="font-bold text-lg text-purple-400">${sanitize(user.prestige)}</div><div class="text-xs text-gray-400">Prestigio</div></div>
+                </div>`;
                 el.appendChild(card);
             });
         }
 
         function renderGameList() {
             const el = document.getElementById('game-list');
-            el.innerHTML = ''; // Clear previous content
+            el.innerHTML = '';
             const sortedGames = [...state.games].sort((a, b) => {
                 const statusOrder = { 'voting': 0, 'active': 1, 'vetoed': 2 };
                 if (statusOrder[a.status] !== statusOrder[b.status]) {
@@ -206,64 +190,20 @@
                 return 0;
             });
 
-            if (sortedGames.length === 0) {
-                const p = document.createElement('p');
-                p.className = 'text-gray-400';
-                p.textContent = 'No hay juegos en la lista.';
-                el.appendChild(p);
-                return;
-            }
+            if (sortedGames.length === 0) { el.innerHTML = `<p class="text-gray-400">No hay juegos en la lista.</p>`; return; }
             sortedGames.forEach(game => el.appendChild(createGameHTML(game)));
         }
         
-        // VULNERABILITY FIX: This entire function is refactored to use textContent instead of innerHTML
         function createGameHTML(game) {
             const card = document.createElement('div');
             
-            const createPlayerVoteIcon = (player, voteData) => {
-                const voteDiv = document.createElement('div');
-                voteDiv.className = 'flex flex-col items-center';
-                
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'text-xs text-gray-400 mb-1';
-                nameSpan.textContent = player.name;
-                
-                const iconSpan = document.createElement('span');
-                iconSpan.className = 'text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full';
-
-                if (voteData !== undefined) {
-                    if (game.status === 'voting') {
-                        iconSpan.classList.add('bg-green-600');
-                        iconSpan.textContent = '✓';
-                    } else {
-                        iconSpan.textContent = voteData;
-                        const colorClass = {0:'bg-red-600', 1:'bg-yellow-600', 2:'bg-blue-600', 3:'bg-green-600'}[voteData];
-                        if (colorClass) iconSpan.classList.add(colorClass);
-                    }
-                } else {
-                    iconSpan.className = 'text-gray-400 text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-dashed border-gray-600';
-                    iconSpan.textContent = '-';
-                }
-                
-                voteDiv.append(nameSpan, iconSpan);
-                return voteDiv;
-            };
-
             if (game.status === 'voting') {
                 card.className = 'p-4 rounded-lg border-2 border-dashed border-yellow-500 bg-yellow-500 bg-opacity-10';
+                const hasVoted = game.votes.hasOwnProperty(state.currentUser.username);
                 
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'flex justify-between items-center flex-wrap gap-2 mb-3';
+                card.innerHTML = `<div class="flex justify-between items-center flex-wrap gap-2 mb-3"><div><span class="text-xl font-bold text-white">${sanitize(game.name)}</span></div><div class="flex items-center gap-2"></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
+                const buttonsDiv = card.querySelector('.flex.items-center.gap-2');
                 
-                const nameDiv = document.createElement('div');
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'text-xl font-bold text-white';
-                nameSpan.textContent = game.name;
-                nameDiv.appendChild(nameSpan);
-
-                const buttonsDiv = document.createElement('div');
-                buttonsDiv.className = 'flex items-center gap-2';
-
                 if (state.currentUser.isAdmin) {
                     const revealBtn = document.createElement('button');
                     revealBtn.className = 'btn btn-warning btn-sm';
@@ -271,67 +211,44 @@
                     revealBtn.onclick = () => handleAdminFinalizeVote(game._id, game.name);
                     buttonsDiv.appendChild(revealBtn);
                 } else {
-                    const hasVoted = game.votes.hasOwnProperty(state.currentUser.username);
                     const voteBtn = document.createElement('button');
                     voteBtn.className = `btn ${hasVoted ? 'btn-secondary' : 'btn-primary'} text-sm`;
                     voteBtn.textContent = hasVoted ? 'Modificar Voto' : 'Votar';
                     voteBtn.onclick = () => openVoteModal(game._id);
                     buttonsDiv.appendChild(voteBtn);
                 }
-
-                headerDiv.append(nameDiv, buttonsDiv);
-
-                const votesContainer = document.createElement('div');
-                votesContainer.className = 'flex justify-around items-center p-2 bg-gray-900 rounded-lg';
-                state.users.filter(u => u.username !== 'admin').forEach(p => {
-                    votesContainer.appendChild(createPlayerVoteIcon(p, game.votes[p.username]));
-                });
                 
-                card.append(headerDiv, votesContainer);
+                const votesContainer = card.querySelector('.flex.justify-around');
+                state.users.filter(u => u.username !== 'admin').forEach(p => {
+                    const voteDiv = document.createElement('div');
+                    voteDiv.className = 'flex flex-col items-center';
+                    let voteContent = game.votes.hasOwnProperty(p.username)
+                        ? `<span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full bg-green-600">✓</span>`
+                        : `<span class="text-gray-400 text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-dashed border-gray-600">-</span>`;
+                    voteDiv.innerHTML = `<span class="text-xs text-gray-400 mb-1">${sanitize(p.name)}</span>${voteContent}`;
+                    votesContainer.appendChild(voteDiv);
+                });
 
             } else if (game.status === 'vetoed') {
                 card.className = 'p-4 rounded-lg bg-red-900 bg-opacity-50 opacity-50';
                 const vetoer = state.users.find(p => p.username === game.vetoedBy);
-                
-                const div = document.createElement('div');
-                div.className = 'flex justify-between items-center';
-                
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'text-xl font-bold text-gray-400 line-through';
-                nameSpan.textContent = game.name;
-                
-                const vetoSpan = document.createElement('span');
-                vetoSpan.className = 'text-sm font-semibold text-red-400';
-                vetoSpan.textContent = `VETADO ${vetoer ? `POR ${vetoer.name.toUpperCase()}` : ''}`;
-                
-                div.append(nameSpan, vetoSpan);
-                card.appendChild(div);
+                card.innerHTML = `<div class="flex justify-between items-center"><span class="text-xl font-bold text-gray-400 line-through">${sanitize(game.name)}</span><span class="text-sm font-semibold text-red-400"></span></div>`;
+                card.querySelector('.text-sm').textContent = `VETADO ${vetoer ? `POR ${sanitize(vetoer.name).toUpperCase()}` : ''}`;
             
-            } else { // active
+            } else { 
                 card.className = `p-4 rounded-lg bg-gray-800 ${Object.values(game.votes).includes(0) ? 'border-2 border-red-600' : ''}`;
+                card.innerHTML = `<div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                      <h4 class="text-xl font-bold text-white flex-grow">${sanitize(game.name)}</h4>
+                                      <div class="flex items-center gap-4 shrink-0">
+                                          <div class="text-right">
+                                              <div class="text-3xl font-bold text-green-400">${sanitize(game.totalScore || 0)}</div>
+                                              <div class="text-sm text-gray-400">puntos</div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
                 
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'flex justify-between items-center mb-3 flex-wrap gap-2';
-                
-                const nameHeader = document.createElement('h4');
-                nameHeader.className = 'text-xl font-bold text-white flex-grow';
-                nameHeader.textContent = game.name;
-
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'flex items-center gap-4 shrink-0';
-                
-                const scoreContainer = document.createElement('div');
-                scoreContainer.className = 'text-right';
-                const scoreVal = document.createElement('div');
-                scoreVal.className = 'text-3xl font-bold text-green-400';
-                scoreVal.textContent = game.totalScore || 0;
-                const scoreLabel = document.createElement('div');
-                scoreLabel.className = 'text-sm text-gray-400';
-                scoreLabel.textContent = 'puntos';
-                scoreContainer.append(scoreVal, scoreLabel);
-                
-                actionsDiv.appendChild(scoreContainer);
-
+                const actionsDiv = card.querySelector('.flex.items-center.gap-4');
                 if (!state.currentUser.isAdmin) {
                     const voteBtn = document.createElement('button');
                     voteBtn.className = 'btn btn-primary text-sm';
@@ -339,8 +256,7 @@
                     voteBtn.onclick = () => openVoteModal(game._id);
                     actionsDiv.appendChild(voteBtn);
 
-                    const canVeto = state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0);
-                    if (canVeto) {
+                    if (state.users.some(p => p.username === state.currentUser.username && p.vetoes > 0 && game.votes[p.username] === 0)) {
                         const vetoBtn = document.createElement('button');
                         vetoBtn.className = 'btn btn-danger text-sm';
                         vetoBtn.textContent = 'Vetar';
@@ -348,16 +264,15 @@
                         actionsDiv.appendChild(vetoBtn);
                     }
                 }
-                
-                headerDiv.append(nameHeader, actionsDiv);
 
-                const votesContainer = document.createElement('div');
-                votesContainer.className = 'flex justify-around items-center p-2 bg-gray-900 rounded-lg';
+                const votesContainer = card.querySelector('.flex.justify-around');
                 state.users.filter(u => u.username !== 'admin').forEach(p => {
-                    votesContainer.appendChild(createPlayerVoteIcon(p, game.votes[p.username]));
+                    const voteDiv = document.createElement('div');
+                    voteDiv.className = 'flex flex-col items-center';
+                    const voteValue = game.votes[p.username];
+                    voteDiv.innerHTML = `<span class="text-xs text-gray-400 mb-1">${sanitize(p.name)}</span><span class="text-white text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${voteValue !== undefined ? {0:'bg-red-600',1:'bg-yellow-600',2:'bg-blue-600',3:'bg-green-600'}[voteValue] : ''}">${sanitize(voteValue ?? '')}</span>`;
+                    votesContainer.appendChild(voteDiv);
                 });
-                
-                card.append(headerDiv, votesContainer);
                 
                 if (Object.values(game.votes).includes(0)) {
                     const blockedText = document.createElement('p');
@@ -374,8 +289,7 @@
             const user = state.users.find(u => u.username === state.currentUser.username);
             const currentVote = game.votes[user.username];
             
-            // VULNERABILITY FIX: Use textContent
-            document.getElementById('vote-game-name').textContent = game.name;
+            document.getElementById('vote-game-name').innerHTML = sanitize(game.name);
             const voteForm = document.getElementById('vote-form');
             voteForm.innerHTML = ''; voteForm.dataset.gameid = gameId;
 
@@ -400,30 +314,15 @@
             state.users.filter(u => u.username !== 'admin').forEach(user => {
                  const userCard = document.createElement('div');
                  userCard.className = 'p-3 bg-gray-800 rounded-lg';
-                 
-                 // VULNERABILITY FIX: Use textContent for user names
-                 const p = document.createElement('p');
-                 p.className = 'font-bold text-white mb-2';
-                 p.textContent = `${user.name} (${user.username})`;
-                 userCard.appendChild(p);
-                 
-                 const form = document.createElement('form');
-                 form.className = 'grid grid-cols-2 md:grid-cols-4 gap-4';
-                 form.onsubmit = (event) => handleAdminUpdateStats(event, user.username);
-                 form.innerHTML = `
+                 userCard.innerHTML = `<p class="font-bold text-white mb-2">${sanitize(user.name)} (${sanitize(user.username)})</p>
+                 <form class="grid grid-cols-2 md:grid-cols-4 gap-4" onsubmit="handleAdminUpdateStats(event, '${sanitize(user.username)}')">
                     <div><label class="text-xs">Tokens</label><input type="number" name="tokens" value="${user.tokens}" class="w-full bg-gray-700 p-1 rounded"></div>
                     <div><label class="text-xs">Compr.</label><input type="number" name="committedTokens" value="${user.committedTokens || 0}" class="w-full bg-gray-700 p-1 rounded"></div>
                     <div><label class="text-xs">Vetos</label><input type="number" name="vetoes" value="${user.vetoes}" class="w-full bg-gray-700 p-1 rounded"></div>
                     <div><label class="text-xs">Prestigio</label><input type="number" name="prestige" value="${user.prestige}" step="0.1" class="w-full bg-gray-700 p-1 rounded"></div>
-                    <div class="col-span-4 flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div>`;
-                 userCard.appendChild(form);
-
-                 const passForm = document.createElement('form');
-                 passForm.className = 'mt-4';
-                 passForm.onsubmit = (event) => handleAdminResetPassword(event, user.username);
-                 passForm.innerHTML = `<label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div>`;
-                 userCard.appendChild(passForm);
-
+                    <div class="col-span-4 flex items-end"><button type="submit" class="btn btn-primary text-sm w-full">Guardar Stats</button></div>
+                 </form>
+                 <form class="mt-4" onsubmit="handleAdminResetPassword(event, '${sanitize(user.username)}')"><label class="text-xs">Nueva Contraseña</label><div class="flex gap-2"><input type="text" name="newPassword" placeholder="Nueva Contraseña" class="w-full bg-gray-700 p-1 rounded"><button type="submit" class="btn btn-warning text-sm">Reset Pass</button></div></form>`;
                  userListEl.appendChild(userCard);
             });
 
@@ -432,14 +331,8 @@
             state.games.forEach(game => {
                 const gameDiv = document.createElement('div');
                 gameDiv.className = 'flex justify-between items-center p-2 bg-gray-800 rounded';
-                
-                // VULNERABILITY FIX: Use textContent for game name
-                const nameSpan = document.createElement('span');
-                nameSpan.textContent = game.name;
-                
-                const buttonsDiv = document.createElement('div');
-                buttonsDiv.className = 'flex gap-2';
-
+                gameDiv.innerHTML = `<span>${sanitize(game.name)}</span><div class="flex gap-2"></div>`;
+                const buttonsDiv = gameDiv.querySelector('.flex.gap-2');
                 if (game.status === 'vetoed') {
                     const unvetoBtn = document.createElement('button');
                     unvetoBtn.className = 'btn btn-success btn-sm text-xs';
@@ -452,8 +345,6 @@
                 deleteBtn.textContent = 'Eliminar';
                 deleteBtn.onclick = () => handleAdminDeleteGame(game._id, game.name);
                 buttonsDiv.appendChild(deleteBtn);
-
-                gameDiv.append(nameSpan, buttonsDiv);
                 gameListEl.appendChild(gameDiv);
             });
             modals.admin.classList.add('is-open');
