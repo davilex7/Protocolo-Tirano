@@ -1,6 +1,6 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
-const cors =require('cors');
+const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt =require('jsonwebtoken');
 const path = require('path');
@@ -53,16 +53,24 @@ async function updateGameScore(gameId) {
 }
 
 async function recalculateAllScores() {
-    console.log('[RECALC] Iniciando recálculo de todas las puntuaciones de Versatilidad.');
+    console.log('[RECALC] Iniciando recálculo con la fórmula del "Bonus del Convicto".');
     const allActivePlayers = await usersCollection.find({ username: { $ne: 'admin' } }).toArray();
     const allActiveGames = await gamesCollection.find({ status: 'active' }).toArray();
     
     const bulkUserOps = allActivePlayers.map(player => {
         let totalVersatilityScore = 0;
+        const prestigeBonusBase = (player.prestige || 0) / 10.0;
+
         allActiveGames.forEach(game => {
             if (game.votes.hasOwnProperty(player.username)) {
                 const voteValue = game.votes[player.username];
-                const scoreForGame = voteValue * (1 + (player.prestige || 0) / 10);
+                
+                // Nueva Fórmula Definitiva: El "Bonus del Convicto"
+                let specializationFactor = 0;
+                if (voteValue === 3) specializationFactor = 4; // Factor 4 para el voto 3
+                if (voteValue === 1) specializationFactor = 1; // Factor 1 para el voto 1
+                
+                const scoreForGame = voteValue + (prestigeBonusBase * specializationFactor);
                 totalVersatilityScore += scoreForGame;
             }
         });
@@ -109,9 +117,11 @@ async function finalizeVotes(gameId) {
         }
     }
 
-    const bulkUserOps = Object.entries(playerUpdates).map(([username, changes]) => ({
-        updateOne: { filter: { username: username }, update: { $inc: { ...changes } } }
-    }));
+    const bulkUserOps = Object.entries(playerUpdates)
+        .filter(([_, changes]) => Object.values(changes).some(v => v !== 0))
+        .map(([username, changes]) => ({
+            updateOne: { filter: { username: username }, update: { $inc: { ...changes } } }
+        }));
 
     if (bulkUserOps.length > 0) {
         await usersCollection.bulkWrite(bulkUserOps);
@@ -234,7 +244,6 @@ async function main() {
             const gameUpdate = {};
             
             if (oldVote !== undefined) {
-                // Solo registrar cambio si el juego está en votación
                 if (game.status === 'voting') {
                     gameUpdate[`$inc`] = { [`changeLog.${req.user.username}`]: 1 };
                 }
@@ -249,12 +258,17 @@ async function main() {
             gameUpdate[`$set`] = { [`votes.${req.user.username}`]: newVote };
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, gameUpdate);
             
-            // Si el juego ya está activo, las consecuencias son inmediatas y se recalcula todo
             if (game.status === 'active') {
-                const prestigeChange = (newVote === 1 ? 0.5 : (oldVote === 1 ? -0.5 : 0)) + 
-                                     (newVote === 2 ? 0.1 : (oldVote === 2 ? -0.1 : 0)) + 
-                                     (newVote === 0 ? -0.5 : (oldVote === 0 ? 0.5 : 0)) -1;
-                
+                let prestigeChange = -1; // Penalty for changing
+                // Revert old prestige
+                if (oldVote === 0) prestigeChange += 0.5;
+                if (oldVote === 1) prestigeChange -= 0.5;
+                if (oldVote === 2) prestigeChange -= 0.1;
+                // Apply new prestige
+                if (newVote === 0) prestigeChange -= 0.5;
+                if (newVote === 1) prestigeChange += 0.5;
+                if (newVote === 2) prestigeChange += 0.1;
+
                 await usersCollection.updateOne({username: req.user.username}, {$inc: {prestige: prestigeChange}});
                 await updateGameScore(gameId);
                 await recalculateAllScores();

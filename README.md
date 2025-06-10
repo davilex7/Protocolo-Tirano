@@ -1,4 +1,4 @@
-# Guía de Campo: Protocolo de la Inercia (Versión Definitiva)
+# Guía de Campo: Protocolo del Convicto (Versión Definitiva)
 
 ## 1. El Propósito de esta Guerra
 
@@ -8,14 +8,18 @@ Esta aplicación es el árbitro digital de nuestra competición. Su misión es:
 2.  **Generar un Campo de Batalla:** Ordenar los juegos según el deseo colectivo a través de la **Puntuación de Juego**.
 3.  **Otorgar el Poder del Estratega:** Recompensar al jugador con mayor **Prestigio** con la autoridad final sobre la elección del juego.
 
-El sistema está diseñado para que tu reputación actual sea tu mayor arma y tu constancia una fuente de poder.
+El sistema está diseñado para que tu reputación sea tu mayor arma y tu convicción la clave de la victoria.
 
-## 2. El Arsenal: La Economía de la Inercia
+## 2. El Arsenal: La Economía del Convicto
 
-### Puntuación de Versatilidad: El Poder Dinámico de la Reputación
-La Puntuación de Versatilidad de un jugador es un valor dinámico que el servidor recalcula constantemente.
-* **Fórmula de Puntuación:** Para cada juego, tus puntos se calculan con: `Puntos = Valor de tu Voto * (1 + Tu Prestigio Actual / 10)`.
-* **Valoración Continua:** Tu puntuación total es la suma de los puntos de todos los juegos, recalculada siempre con tu Prestigio más reciente. Si tu Prestigio sube, el valor de tus votos pasados también aumenta.
+### Puntuación de Versatilidad: El Poder de la Reputación
+La Puntuación de Versatilidad es un valor dinámico que el servidor recalcula constantemente. No es una suma fija.
+* **Fórmula de Puntuación:** `Puntos de Juego = Valor del Voto + ((Prestigio Actual / 10) * Factor de Especialización)`
+* **Factores de Especialización:**
+    * **Voto `3`:** Factor **4** (El Prestigio tiene un impacto masivo)
+    * **Voto `2`:** Factor **0** (El Prestigio no afecta a este voto)
+    * **Voto `1`:** Factor **1** (El Prestigio tiene un impacto moderado)
+* **Valoración Continua:** Tu puntuación total es la suma de los puntos de todos los juegos, recalculada siempre con tu Prestigio más reciente.
 
 ### El Prestigio: Tu Reputación como Arma
 El Prestigio es el activo más importante. Alimenta tu capacidad de puntuar y te da poder.
@@ -28,10 +32,10 @@ El Prestigio es el activo más importante. Alimenta tu capacidad de puntuar y te
 
 ### Tokens de Prioridad y Fragmentos: El Capital para la Ofensiva
 El sistema de Tokens se gestiona internamente para evitar trampas.
-* **Voto "3" (Prioridad Máxima):** Cuesta **1 Token**. No puedes votar 3 si no tienes Tokens disponibles. El gasto se hace efectivo al finalizar la votación.
-* **Voto "2" (Apoyo Moderado):** Genera **1 Fragmento de Token** al finalizar la votación. Al acumular 3 Fragmentos, se convierten automáticamente en 1 Token completo.
-* **Voto "1" (Tolerable):** No tiene efecto en los Tokens. Su recompensa es el Prestigio.
-* **Voto "0" (Rechazo):** Genera **1 Token** completo al finalizar la votación.
+* **Voto "3" (Prioridad Máxima):** Cuesta **1 Token**.
+* **Voto "2" (Apoyo Moderado):** Genera **1 Fragmento de Token**. Al acumular 3 Fragmentos, se convierten automáticamente en 1 Token completo.
+* **Voto "1" (Tolerable):** No tiene efecto en los Tokens.
+* **Voto "0" (Rechazo):** Genera **1 Token** completo.
 * **Capital Inicial:** Cada jugador comienza con **3 Tokens** y **0 Fragmentos**.
 
 ### Votación y Vetos
