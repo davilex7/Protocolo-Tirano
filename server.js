@@ -1,6 +1,6 @@
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
-const cors = require('cors');
+const cors =require('cors');
 const bcrypt = require('bcrypt');
 const jwt =require('jsonwebtoken');
 const path = require('path');
@@ -236,7 +236,8 @@ async function main() {
             const player = await usersCollection.findOne({ username: req.user.username });
             const availableTokens = (player.tokens || 0) - (player.committedTokens || 0);
 
-            if (newVote === 3 && availableTokens < 1) {
+            // Se mejora la comprobación para no bloquear al usuario si está cambiando un voto de 3 a otro valor.
+            if (newVote === 3 && oldVote !== 3 && availableTokens < 1) {
                 return res.status(403).json({ message: 'No tienes suficientes Tokens disponibles para votar 3.' });
             }
 
@@ -259,17 +260,46 @@ async function main() {
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, gameUpdate);
             
             if (game.status === 'active') {
-                let prestigeChange = -1; // Penalty for changing
-                // Revert old prestige
-                if (oldVote === 0) prestigeChange += 0.5;
-                if (oldVote === 1) prestigeChange -= 0.5;
-                if (oldVote === 2) prestigeChange -= 0.1;
-                // Apply new prestige
-                if (newVote === 0) prestigeChange -= 0.5;
-                if (newVote === 1) prestigeChange += 0.5;
-                if (newVote === 2) prestigeChange += 0.1;
+                // --- INICIO DE LA CORRECCIÓN ---
+                let prestigeChange = -1; // Penalización por modificar un voto
+                let tokenChange = 0;
+                let fragmentChange = 0;
+        
+                // Revertir consecuencias del voto antiguo
+                if (oldVote === 0) { prestigeChange += 0.5; tokenChange -= 1; }
+                if (oldVote === 1) { prestigeChange -= 0.5; }
+                if (oldVote === 2) { prestigeChange -= 0.1; fragmentChange -= 1; }
+                if (oldVote === 3) { tokenChange += 1; } // Devuelve el token que se gastó
+        
+                // Aplicar consecuencias del nuevo voto
+                if (newVote === 0) { prestigeChange -= 0.5; tokenChange += 1; }
+                if (newVote === 1) { prestigeChange += 0.5; }
+                if (newVote === 2) { prestigeChange += 0.1; fragmentChange += 1; }
+                if (newVote === 3) { tokenChange -= 1; } // Gasta un token
+                
+                const userUpdateOps = { $inc: {} };
+                if (prestigeChange !== 0) userUpdateOps.$inc.prestige = prestigeChange;
+                if (tokenChange !== 0) userUpdateOps.$inc.tokens = tokenChange;
+                if (fragmentChange !== 0) userUpdateOps.$inc.tokenFragments = fragmentChange;
+        
+                if (Object.keys(userUpdateOps.$inc).length > 0) {
+                    await usersCollection.updateOne({ username: req.user.username }, userUpdateOps);
+                }
 
-                await usersCollection.updateOne({username: req.user.username}, {$inc: {prestige: prestigeChange}});
+                // Comprobar si se pueden convertir fragmentos en un token
+                if (fragmentChange > 0) {
+                    const updatedPlayer = await usersCollection.findOne({ username: req.user.username });
+                    if (updatedPlayer.tokenFragments >= 3) {
+                        const newTokens = Math.floor(updatedPlayer.tokenFragments / 3);
+                        const remainingFragments = updatedPlayer.tokenFragments % 3;
+                        await usersCollection.updateOne(
+                            { username: updatedPlayer.username },
+                            { $inc: { tokens: newTokens }, $set: { tokenFragments: remainingFragments } }
+                        );
+                    }
+                }
+                // --- FIN DE LA CORRECCIÓN ---
+
                 await updateGameScore(gameId);
                 await recalculateAllScores();
             }
