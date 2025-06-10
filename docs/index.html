@@ -152,10 +152,16 @@
         function renderGameList() {
             const el = document.getElementById('game-list');
             el.innerHTML = '';
-            // Ordenar por estado: votación primero, luego vetados, luego activos
+            // Ordenar por estado, y luego por puntuación total descendente
             const sortedGames = [...state.games].sort((a, b) => {
                 const statusOrder = { 'voting': 0, 'active': 1, 'vetoed': 2 };
-                return statusOrder[a.status] - statusOrder[b.status];
+                if (statusOrder[a.status] !== statusOrder[b.status]) {
+                    return statusOrder[a.status] - statusOrder[b.status];
+                }
+                if (a.status === 'active') {
+                    return (b.totalScore || 0) - (a.totalScore || 0);
+                }
+                return 0; // Mantener orden original para otros estados
             });
 
             if (sortedGames.length === 0) { el.innerHTML = '<p class="text-gray-400">No hay juegos en la lista.</p>'; return; }
@@ -172,13 +178,21 @@
                 card.innerHTML = `<div class="flex justify-between items-center flex-wrap gap-2 mb-3"><div><span class="text-xl font-bold text-white">${game.name}</span></div><div class="flex items-center gap-2"></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
                 const buttonsDiv = card.querySelector('.flex.items-center.gap-2');
                 
-                if (!state.currentUser.isAdmin) {
+                // --- INICIO DE LA CORRECCIÓN ---
+                if (state.currentUser.isAdmin) {
+                    const revealBtn = document.createElement('button');
+                    revealBtn.className = 'btn btn-warning btn-sm';
+                    revealBtn.textContent = 'Finalizar Voto';
+                    revealBtn.onclick = () => handleAdminFinalizeVote(game._id, game.name);
+                    buttonsDiv.appendChild(revealBtn);
+                } else {
                     const voteBtn = document.createElement('button');
                     voteBtn.className = `btn ${hasVoted ? 'btn-secondary' : 'btn-primary'} text-sm`;
                     voteBtn.textContent = hasVoted ? 'Modificar Voto' : 'Votar';
                     voteBtn.onclick = () => openVoteModal(game._id);
                     buttonsDiv.appendChild(voteBtn);
                 }
+                // --- FIN DE LA CORRECCIÓN ---
                 
                 const votesContainer = card.querySelector('.flex.justify-around');
                 state.users.filter(u => u.username !== 'admin').forEach(p => {
@@ -199,7 +213,16 @@
             
             } else { // active
                 card.className = `p-4 rounded-lg bg-gray-800 ${Object.values(game.votes).includes(0) ? 'border-2 border-red-600' : ''}`;
-                card.innerHTML = `<div class="flex justify-between items-center mb-3 flex-wrap gap-2"><h4 class="text-xl font-bold text-white flex-grow">${game.name}</h4><div class="flex items-center gap-4 shrink-0"></div></div><div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
+                card.innerHTML = `<div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+                                      <h4 class="text-xl font-bold text-white flex-grow">${game.name}</h4>
+                                      <div class="flex items-center gap-4 shrink-0">
+                                          <div class="text-right">
+                                              <div class="text-3xl font-bold text-green-400">${game.totalScore || 0}</div>
+                                              <div class="text-sm text-gray-400">puntos</div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div class="flex justify-around items-center p-2 bg-gray-900 rounded-lg"></div>`;
                 
                 const actionsDiv = card.querySelector('.flex.items-center.gap-4');
                 if (!state.currentUser.isAdmin) {
@@ -326,6 +349,20 @@
                 openAdminModal();
             } catch (error) { alert(error.message); }
         }
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Se añade la función para el botón del admin
+        async function handleAdminFinalizeVote(gameId, gameName) {
+            if (!confirm(`¿Seguro que quieres forzar la finalización de la votación para "${gameName}"?`)) return;
+            try {
+                const result = await apiCall(`/api/admin/games/${gameId}/reveal`, 'POST');
+                alert(result.message);
+                await fetchState();
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+        // --- FIN DE LA CORRECCIÓN ---
 
         async function handleAdminUpdateStats(e, username) {
             e.preventDefault();

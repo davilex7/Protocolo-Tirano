@@ -2,7 +2,7 @@ const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+const jwt =require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config();
 
@@ -46,6 +46,20 @@ const isAdmin = async (req, res, next) => {
 };
 
 // --- Lógica de Recálculo y Finalización ---
+
+// Nueva función para calcular la puntuación de un juego individual
+async function updateGameScore(gameId) {
+    const game = await gamesCollection.findOne({ _id: new ObjectId(gameId) });
+    if (!game) return;
+
+    const totalScore = Object.values(game.votes).reduce((sum, vote) => sum + vote, 0);
+    
+    await gamesCollection.updateOne(
+        { _id: new ObjectId(gameId) },
+        { $set: { totalScore: totalScore } }
+    );
+    console.log(`[SCORE UPDATE] Puntuación para "${game.name}" actualizada a: ${totalScore}`);
+}
 
 // Recalcula la puntuación de Versatilidad para TODOS los jugadores
 async function recalculateAllScores() {
@@ -92,6 +106,9 @@ async function finalizeVotes(gameId) {
         { _id: new ObjectId(game._id) },
         { $set: { status: 'active' }, $unset: { revealAt: "" } }
     );
+    
+    // Asegurarse de que la puntuación del juego esté calculada
+    await updateGameScore(gameId);
 
     // Como el estado de un juego ha cambiado, se recalcula todo
     await recalculateAllScores();
@@ -169,7 +186,8 @@ async function main() {
             await gamesCollection.insertOne({ 
                 name: req.body.name, 
                 status: 'voting', // Empieza directamente en votación
-                votes: {}
+                votes: {},
+                totalScore: 0
             });
             res.status(201).json({ message: 'Juego añadido. La votación ha comenzado.' });
         });
@@ -213,6 +231,9 @@ async function main() {
             
             await gamesCollection.updateOne({ _id: new ObjectId(gameId) }, { $set: { [`votes.${req.user.username}`]: newVote } });
             
+            // Actualizar la puntuación del juego después de cada voto
+            await updateGameScore(gameId);
+            
             // Recalcular puntuaciones después de un cambio que afecta al Prestigio
             if (prestigeChange !== 0) {
                 await recalculateAllScores();
@@ -248,6 +269,25 @@ async function main() {
         });
         
         // --- RUTAS DE ADMINISTRADOR ---
+
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Reintroducir la ruta para que el admin finalice la votación
+        apiRouter.post('/admin/games/:id/reveal', isAdmin, async (req, res) => {
+            try {
+                const game = await gamesCollection.findOne({ _id: new ObjectId(req.params.id) });
+                if (game && game.status === 'voting') {
+                    await finalizeVotes(req.params.id);
+                    res.status(200).json({ message: 'Votación finalizada por el admin.' });
+                } else {
+                    res.status(400).json({ message: 'Este juego no está en votación o no existe.' });
+                }
+            } catch (error) {
+                console.error("Error al finalizar votación (admin):", error);
+                res.status(500).json({ message: "Error interno del servidor al finalizar la votación."});
+            }
+        });
+        // --- FIN DE LA CORRECCIÓN ---
+        
         apiRouter.post('/admin/reset-password', isAdmin, async (req, res) => {
             const { username, newPassword } = req.body;
             if (!username || !newPassword || newPassword.length < 6) return res.status(400).json({ message: 'Datos incompletos.' });
